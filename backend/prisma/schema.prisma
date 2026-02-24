@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Employee {
+  emp_id        Int    @id @default(autoincrement())
+  name          String
+  email         String @unique
+  password_hash String
+  role_id       Int
+  role          Role   @relation(fields: [role_id], references: [role_id])
+}
+
+model Role {
+  role_id          Int               @id @default(autoincrement())
+  role_name        String            @unique
+  description      String?
+  employees        Employee[]
+  role_permissions Role_Permission[]
+}
+
+model Permission {
+  perm_id          Int               @id @default(autoincrement())
+  action_name      String            @unique
+  description      String?
+  role_permissions Role_Permission[]
+}
+
+model Role_Permission {
+  role_id    Int
+  perm_id    Int
+  role       Role       @relation(fields: [role_id], references: [role_id], onDelete: Cascade)
+  permission Permission @relation(fields: [perm_id], references: [perm_id], onDelete: Cascade)
+
+  @@id([role_id, perm_id])
+}
