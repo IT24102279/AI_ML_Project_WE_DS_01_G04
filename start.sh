@@ -6,11 +6,9 @@ done
 
 echo "Database is ready."
 cd backend
-echo "Pushing Prisma schema..."
-/tmp/fnm/fnm exec --using=20 npx prisma db push
+echo "Setting up database schema and seeding..."
+/tmp/fnm/fnm exec --using=20 npx tsx src/seed.ts
 
-echo "Seeding database..."
-/tmp/fnm/fnm exec --using=20 npx tsx prisma/seed.ts
 
 echo "Starting Backend Server on port 5000..."
 /tmp/fnm/fnm exec --using=20 npx tsx src/server.ts &
