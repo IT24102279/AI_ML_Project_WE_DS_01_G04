@@ -87,3 +87,60 @@ CREATE TABLE IF NOT EXISTS App_Settings (
     setting_value VARCHAR(255) NOT NULL,
     description TEXT
 );
+
+-- --- Module 1: Sale & Billing (POS) ---
+
+CREATE TABLE IF NOT EXISTS Patients (
+    patient_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    phone VARCHAR(50),
+    age INT,
+    gender ENUM('Male', 'Female', 'Other'),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS Prescriptions (
+    prescription_id INT AUTO_INCREMENT PRIMARY KEY,
+    patient_id INT,
+    status ENUM('Pending Verification', 'Verified') NOT NULL DEFAULT 'Pending Verification',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (patient_id) REFERENCES Patients(patient_id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS Prescription_lines (
+    line_id INT AUTO_INCREMENT PRIMARY KEY,
+    prescription_id INT NOT NULL,
+    medicine_name_raw VARCHAR(255) NOT NULL,
+    frequency VARCHAR(100),
+    total_amount INT NOT NULL,
+    matched_product_id INT,
+    FOREIGN KEY (prescription_id) REFERENCES Prescriptions(prescription_id) ON DELETE CASCADE,
+    FOREIGN KEY (matched_product_id) REFERENCES Products(product_id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS Sales_Invoices (
+    invoice_id INT AUTO_INCREMENT PRIMARY KEY,
+    is_over_the_counter BOOLEAN NOT NULL DEFAULT TRUE,
+    patient_id INT,
+    cashier_id INT NOT NULL,
+    prescription_id INT,
+    payment_method ENUM('Cash', 'Card', 'Pending') NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    money_given DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    status ENUM('Draft', 'Completed', 'Voided') NOT NULL DEFAULT 'Draft',
+    notes TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (patient_id) REFERENCES Patients(patient_id) ON DELETE SET NULL,
+    FOREIGN KEY (cashier_id) REFERENCES Employee(emp_id) ON DELETE RESTRICT,
+    FOREIGN KEY (prescription_id) REFERENCES Prescriptions(prescription_id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS Sale_Items (
+    sale_item_id INT AUTO_INCREMENT PRIMARY KEY,
+    invoice_id INT NOT NULL,
+    batch_id INT NOT NULL,
+    quantity INT NOT NULL,
+    unit_price DECIMAL(10,2) NOT NULL,
+    FOREIGN KEY (invoice_id) REFERENCES Sales_Invoices(invoice_id) ON DELETE CASCADE,
+    FOREIGN KEY (batch_id) REFERENCES Inventory_Batches(batch_id) ON DELETE RESTRICT
+);

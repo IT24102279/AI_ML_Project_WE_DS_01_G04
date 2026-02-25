@@ -1,12 +1,22 @@
 import express from 'express';
 import cors from 'cors';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import { register, login } from './controllers/auth.controller';
 import { getAllRoles, getAllPermissions, updateRolePermissions } from './controllers/rbac.controller';
 import { authenticateToken, hasPermission } from './middleware/auth';
 
 const app = express();
+export const server = createServer(app);
+export const io = new Server(server, { cors: { origin: '*' } });
+
 app.use(cors());
 app.use(express.json());
+
+io.on('connection', (socket) => {
+    console.log('A client connected:', socket.id);
+    socket.on('disconnect', () => console.log('Client disconnected:', socket.id));
+});
 
 import { getAllProducts, searchProducts, createProduct, updateProduct, deleteProduct } from './controllers/products.controller';
 import { getAllSuppliers, createSupplier, updateSupplier, deleteSupplier } from './controllers/suppliers.controller';
@@ -49,6 +59,14 @@ import { getSettings, updateSetting } from './controllers/settings.controller';
 app.get('/api/settings', authenticateToken, getSettings);
 app.put('/api/settings/:key', authenticateToken, hasPermission('MANAGE_ROLES'), updateSetting);
 
+// --- POS Routes ---
+import { processPrescription, saveDraftSale, confirmCheckout, searchPosProducts, getInvoiceReceipt } from './controllers/pos.controller';
+app.post('/api/pos/process-prescription', processPrescription); // Microservice auth
+app.post('/api/pos/draft', authenticateToken, hasPermission('VIEW_TAB_POS'), saveDraftSale);
+app.post('/api/pos/checkout', authenticateToken, hasPermission('VIEW_TAB_POS'), confirmCheckout);
+app.get('/api/pos/search', authenticateToken, hasPermission('VIEW_TAB_POS'), searchPosProducts);
+app.get('/api/pos/invoice/:id', authenticateToken, hasPermission('VIEW_TAB_POS'), getInvoiceReceipt);
+
 // Basic health check
 app.get('/api/health', (req, res) => {
     res.status(200).json({ status: 'ok' });
@@ -56,6 +74,6 @@ app.get('/api/health', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+server.listen(PORT, () => {
+    console.log(`Server and Socket.io running on port ${PORT}`);
 });

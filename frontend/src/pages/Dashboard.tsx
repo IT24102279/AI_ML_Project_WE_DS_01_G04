@@ -12,6 +12,8 @@ import InventoryTab from '@/components/dashboard/InventoryTab';
 import SuppliersTab from '@/components/dashboard/SuppliersTab';
 import GRNTab from '@/components/dashboard/GRNTab';
 import FinanceTab from '@/components/dashboard/FinanceTab';
+import PosTab from '@/components/dashboard/PosTab';
+import SettingsTab from '@/components/dashboard/SettingsTab';
 
 interface Permission {
     perm_id: number;
@@ -112,9 +114,10 @@ export default function Dashboard() {
     const canViewSuppliers = userPerms.includes('VIEW_TAB_SUPPLIERS');
     const canViewGRN = userPerms.includes('VIEW_TAB_GRN');
     const canViewFinance = userPerms.includes('VIEW_TAB_FINANCE');
+    const canViewPOS = userPerms.includes('VIEW_TAB_POS');
 
     // Determine default tab based on permissions
-    let defaultTab = canManageRoles ? "rbac" : (canViewInventory ? "inventory" : (canViewSuppliers ? "suppliers" : "home"));
+    let defaultTab = canViewPOS ? "pos" : (canManageRoles ? "rbac" : (canViewInventory ? "inventory" : (canViewSuppliers ? "suppliers" : "home")));
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-8">
@@ -131,6 +134,8 @@ export default function Dashboard() {
                 <Tabs defaultValue={defaultTab} className="w-full">
                     <TabsList className="mb-6 bg-white border shadow-sm p-1 rounded-lg">
                         {canManageRoles && <TabsTrigger value="rbac">Roles & Permissions</TabsTrigger>}
+                        {canManageRoles && <TabsTrigger value="settings">App Settings</TabsTrigger>}
+                        {canViewPOS && <TabsTrigger value="pos" className="bg-blue-50 text-blue-700 data-[state=active]:bg-blue-600 data-[state=active]:text-white">Point of Sale (POS)</TabsTrigger>}
                         {canViewInventory && <TabsTrigger value="inventory">Products / Alerts</TabsTrigger>}
                         {canViewSuppliers && <TabsTrigger value="suppliers">Suppliers</TabsTrigger>}
                         {canViewGRN && <TabsTrigger value="grn">Receive Stock (GRN)</TabsTrigger>}
@@ -187,6 +192,19 @@ export default function Dashboard() {
                         </TabsContent>
                     )}
 
+                    {canManageRoles && (
+                        <TabsContent value="settings">
+                            <Card className="shadow-sm">
+                                <CardHeader>
+                                    <CardTitle>Pharmacy Layout Settings</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <SettingsTab />
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    )}
+
                     {canViewInventory && (
                         <TabsContent value="inventory">
                             <Card className="shadow-sm">
@@ -228,7 +246,15 @@ export default function Dashboard() {
                         </TabsContent>
                     )}
 
-                    {!canManageRoles && !canViewInventory && !canViewSuppliers && !canViewGRN && !canViewFinance && (
+                    {canViewPOS && (
+                        <TabsContent value="pos">
+                            <div className="bg-white rounded-xl border shadow-sm p-6">
+                                <PosTab currency={settings.currency || '$'} />
+                            </div>
+                        </TabsContent>
+                    )}
+
+                    {!canManageRoles && !canViewInventory && !canViewSuppliers && !canViewGRN && !canViewFinance && !canViewPOS && (
                         <div className="text-center py-20 text-slate-500 bg-white rounded-xl border shadow-sm">
                             <p className="text-xl">Welcome to your dashboard.</p>
                             <p className="text-sm">You do not have any module permissions assigned yet.</p>

@@ -27,8 +27,8 @@ export const updateSetting = async (req: Request, res: Response) => {
         }
 
         await pool.query(
-            'UPDATE App_Settings SET setting_value = ? WHERE setting_key = ?',
-            [value, key]
+            'INSERT INTO App_Settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?',
+            [key, value, value]
         );
         res.status(200).json({ message: 'Setting updated successfully' });
     } catch (error) {
