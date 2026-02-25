@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../db';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { AuthRequest } from '../middleware/auth';
 
 // ----------------- INVENTORY & GRN -----------------
 
@@ -110,6 +111,25 @@ export const getAlerts = async (req: Request, res: Response) => {
         res.status(200).json({ lowStock, nearExpiry });
     } catch (error) {
         console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const getGrnHistory = async (req: AuthRequest, res: Response) => {
+    try {
+        const [history] = await pool.query<RowDataPacket[]>(
+            `SELECT i.invoice_id, i.supplier_invoice_number, i.total_amount, i.payment_method, 
+                    i.check_number, i.check_date, i.check_cleared, i.received_at, 
+                    s.supplier_id, s.name as supplier_name, e.name as recorded_by
+             FROM Supplier_Invoices i
+             JOIN Suppliers s ON i.supplier_id = s.supplier_id
+             JOIN Employee e ON i.recorded_by_emp_id = e.emp_id
+             ORDER BY i.received_at DESC
+             LIMIT 100`
+        );
+        res.status(200).json(history);
+    } catch (error) {
+        console.error("Error fetching GRN history:", error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };

@@ -10,7 +10,7 @@ app.use(express.json());
 
 import { getAllProducts, searchProducts, createProduct, updateProduct, deleteProduct } from './controllers/products.controller';
 import { getAllSuppliers, createSupplier, updateSupplier, deleteSupplier } from './controllers/suppliers.controller';
-import { receiveStock, getAlerts } from './controllers/inventory.controller';
+import { receiveStock, getAlerts, getGrnHistory } from './controllers/inventory.controller';
 import { getPendingChecks, clearCheck } from './controllers/finance.controller';
 
 // --- Auth Routes ---
@@ -38,6 +38,7 @@ app.delete('/api/suppliers/:id', authenticateToken, hasPermission('VIEW_TAB_SUPP
 // --- Inventory & GRN Routes ---
 app.post('/api/inventory/receive', authenticateToken, hasPermission('VIEW_TAB_GRN'), receiveStock);
 app.get('/api/inventory/alerts', authenticateToken, hasPermission('VIEW_TAB_INVENTORY'), getAlerts);
+app.get('/api/inventory/grn-history', authenticateToken, hasPermission('VIEW_TAB_GRN'), getGrnHistory);
 
 // --- Finance Routes ---
 app.get('/api/finance/pending-checks', authenticateToken, hasPermission('VIEW_TAB_FINANCE'), getPendingChecks);
