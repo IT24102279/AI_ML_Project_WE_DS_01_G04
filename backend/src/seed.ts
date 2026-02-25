@@ -17,6 +17,10 @@ async function runSeed() {
     console.log("Seeding Permissions...");
     const permissionsData = [
         ['VIEW_DASHBOARD', 'Can access main dashboard'],
+        ['VIEW_TAB_INVENTORY', 'Can access Inventory & Products tab'],
+        ['VIEW_TAB_SUPPLIERS', 'Can access Suppliers tab'],
+        ['VIEW_TAB_GRN', 'Can access Receive Stock (GRN) tab'],
+        ['VIEW_TAB_FINANCE', 'Can access checks and finance tab'],
         ['CREATE_SALE', 'Can process a POS transaction'],
         ['VOID_SALE', 'Can cancel a POS transaction'],
         ['MANAGE_ROLES', 'Can modify user roles and permissions'],
