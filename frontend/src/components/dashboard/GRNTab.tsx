@@ -25,7 +25,7 @@ interface BatchRow {
     unit_cost: number;
 }
 
-export default function GRNTab() {
+export default function GRNTab({ currency = '$' }: { currency?: string }) {
     const { toast } = useToast();
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -122,7 +122,7 @@ export default function GRNTab() {
             };
 
             const res = await fetchWithAuth('/inventory/receive', { method: 'POST', body: JSON.stringify(payload) });
-            toast({ title: "GRN Posted", description: `Invoice total $${res.total_amount.toFixed(2)} recorded.` });
+            toast({ title: "GRN Posted", description: `Invoice total ${currency}${res.total_amount.toFixed(2)} recorded.` });
 
             // Reset
             setSupplierId(""); setInvoiceNumber(""); setPaymentMethod("Cash"); setCheckNumber(""); setCheckDate(""); setBatches([]);
@@ -138,7 +138,7 @@ export default function GRNTab() {
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold">Receive Stock (GRN)</h2>
                 <div className="text-xl font-bold p-3 bg-blue-50 text-blue-900 rounded-lg border border-blue-200">
-                    Grand Total: ${totalAmount.toFixed(2)}
+                    Grand Total: {currency}{totalAmount.toFixed(2)}
                 </div>
             </div>
 
@@ -224,7 +224,7 @@ export default function GRNTab() {
                                 <TableHead>Location</TableHead>
                                 <TableHead className="w-[100px]">Purch. Qty</TableHead>
                                 <TableHead className="w-[100px]">Bonus Qty</TableHead>
-                                <TableHead className="w-[120px]">Unit Cost ($)</TableHead>
+                                <TableHead className="w-[120px]">Unit Cost ({currency})</TableHead>
                                 <TableHead className="w-[120px] text-right">Line Total</TableHead>
                                 <TableHead className="w-[60px]"></TableHead>
                             </TableRow>
@@ -295,7 +295,7 @@ export default function GRNTab() {
                                         <Input type="number" min="0" step="0.01" value={row.unit_cost || ''} onChange={e => updateRow(row.id, "unit_cost", e.target.value)} />
                                     </TableCell>
                                     <TableCell className="text-right font-medium">
-                                        ${(Number(row.purchased_quantity) * Number(row.unit_cost)).toFixed(2)}
+                                        {currency}{(Number(row.purchased_quantity) * Number(row.unit_cost)).toFixed(2)}
                                     </TableCell>
                                     <TableCell>
                                         <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => removeRow(row.id)}>

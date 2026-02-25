@@ -81,3 +81,9 @@ CREATE TABLE IF NOT EXISTS Audit_Logs (
     timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (emp_id) REFERENCES Employee(emp_id) ON DELETE RESTRICT
 );
+
+CREATE TABLE IF NOT EXISTS App_Settings (
+    setting_key VARCHAR(100) PRIMARY KEY,
+    setting_value VARCHAR(255) NOT NULL,
+    description TEXT
+);

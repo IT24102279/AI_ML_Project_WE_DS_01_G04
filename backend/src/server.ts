@@ -43,6 +43,11 @@ app.get('/api/inventory/alerts', authenticateToken, hasPermission('VIEW_TAB_INVE
 app.get('/api/finance/pending-checks', authenticateToken, hasPermission('VIEW_TAB_FINANCE'), getPendingChecks);
 app.patch('/api/finance/checks/:id/clear', authenticateToken, hasPermission('VIEW_TAB_FINANCE'), clearCheck);
 
+// --- Settings Routes ---
+import { getSettings, updateSetting } from './controllers/settings.controller';
+app.get('/api/settings', authenticateToken, getSettings);
+app.put('/api/settings/:key', authenticateToken, hasPermission('MANAGE_ROLES'), updateSetting);
+
 // Basic health check
 app.get('/api/health', (req, res) => {
     res.status(200).json({ status: 'ok' });

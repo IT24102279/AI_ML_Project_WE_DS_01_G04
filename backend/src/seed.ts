@@ -63,6 +63,12 @@ async function runSeed() {
             ['System Admin', 'admin@pharmacy.com', password_hash, adminId]
         );
     }
+
+    console.log("Seeding App Settings...");
+    await pool.query(
+        'INSERT IGNORE INTO App_Settings (setting_key, setting_value, description) VALUES (?, ?, ?)',
+        ['currency', 'LKR', 'Base currency symbol for the application']
+    );
 }
 
 runSeed()

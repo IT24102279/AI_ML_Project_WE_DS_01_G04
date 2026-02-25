@@ -28,6 +28,7 @@ interface Role {
 export default function Dashboard() {
     const [roles, setRoles] = useState<Role[]>([]);
     const [permissions, setPermissions] = useState<Permission[]>([]);
+    const [settings, setSettings] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const navigate = useNavigate();
@@ -39,14 +40,15 @@ export default function Dashboard() {
     const loadData = async () => {
         try {
             setIsLoading(true);
-            const [rolesData, permsData] = await Promise.all([
-                fetchWithAuth('/roles'),
-                fetchWithAuth('/permissions')
+            const [rolesData, permsData, settingsData] = await Promise.all([
+                fetchWithAuth('/roles').catch(() => ({ roles: [] })),
+                fetchWithAuth('/permissions').catch(() => ({ permissions: [] })),
+                fetchWithAuth('/settings').catch(() => ({}))
             ]);
-            setRoles(rolesData.roles);
-            setPermissions(permsData.permissions);
+            setRoles(rolesData.roles || []);
+            setPermissions(permsData.permissions || []);
+            setSettings(settingsData || {});
         } catch (error: any) {
-            // It's okay if /roles fails if they don't have MANAGE_ROLES perm
             if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
                 if (!localStorage.getItem('token')) navigate('/login');
             }
@@ -132,7 +134,7 @@ export default function Dashboard() {
                         {canViewInventory && <TabsTrigger value="inventory">Products / Alerts</TabsTrigger>}
                         {canViewSuppliers && <TabsTrigger value="suppliers">Suppliers</TabsTrigger>}
                         {canViewGRN && <TabsTrigger value="grn">Receive Stock (GRN)</TabsTrigger>}
-                        {canViewFinance && <TabsTrigger value="finance">Finance Checks</TabsTrigger>}
+                        {canViewFinance && <TabsTrigger value="finance">Finance</TabsTrigger>}
                     </TabsList>
 
                     {canManageRoles && (
@@ -208,7 +210,7 @@ export default function Dashboard() {
                     {canViewGRN && (
                         <TabsContent value="grn">
                             <div className="bg-white rounded-xl border shadow-sm p-6">
-                                <GRNTab />
+                                <GRNTab currency={settings.currency || '$'} />
                             </div>
                         </TabsContent>
                     )}
@@ -217,7 +219,10 @@ export default function Dashboard() {
                         <TabsContent value="finance">
                             <Card className="shadow-sm">
                                 <CardContent className="p-6">
-                                    <FinanceTab />
+                                    <FinanceTab
+                                        currency={settings.currency || '$'}
+                                        onCurrencyChange={(val) => setSettings({ ...settings, currency: val })}
+                                    />
                                 </CardContent>
                             </Card>
                         </TabsContent>
