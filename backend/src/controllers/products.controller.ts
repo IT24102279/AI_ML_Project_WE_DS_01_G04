@@ -32,12 +32,12 @@ export const searchProducts = async (req: Request, res: Response) => {
 
 export const createProduct = async (req: Request, res: Response) => {
     try {
-        const { name, measure_unit, category, reorder_threshold } = req.body;
+        const { name, measure_unit, category, reorder_threshold, current_stock } = req.body;
         if (!name || !measure_unit) return res.status(400).json({ error: 'Name and Unit are required' });
 
         const [result] = await pool.query<ResultSetHeader>(
-            'INSERT INTO Products (name, measure_unit, category, reorder_threshold) VALUES (?, ?, ?, ?)',
-            [name, measure_unit, category || null, reorder_threshold || 0]
+            'INSERT INTO Products (name, measure_unit, category, reorder_threshold, current_stock) VALUES (?, ?, ?, ?, ?)',
+            [name, measure_unit, category || null, reorder_threshold || 0, current_stock || 0]
         );
         res.status(201).json({ message: 'Product created successfully', product_id: result.insertId });
     } catch (error) {
@@ -49,11 +49,11 @@ export const createProduct = async (req: Request, res: Response) => {
 export const updateProduct = async (req: Request, res: Response) => {
     try {
         const id = req.params.id;
-        const { name, measure_unit, category, reorder_threshold } = req.body;
+        const { name, measure_unit, category, reorder_threshold, current_stock } = req.body;
 
         await pool.query(
-            'UPDATE Products SET name = ?, measure_unit = ?, category = ?, reorder_threshold = ? WHERE product_id = ?',
-            [name, measure_unit, category, reorder_threshold, id]
+            'UPDATE Products SET name = ?, measure_unit = ?, category = ?, reorder_threshold = ?, current_stock = ? WHERE product_id = ?',
+            [name, measure_unit, category, reorder_threshold, current_stock || 0, id]
         );
         res.status(200).json({ message: 'Product updated successfully' });
     } catch (error) {

@@ -39,9 +39,9 @@ export const receiveStock = async (req: Request, res: Response) => {
         );
         const invoiceId = invoiceResult.insertId;
 
-        // 3. Insert Inventory_Batches
+        // 3. Insert Inventory_Batches AND Update Products.current_stock
         for (const batch of batches) {
-            const currentStock = Number(batch.purchased_quantity) + Number(batch.bonus_quantity || 0);
+            const qty = Number(batch.purchased_quantity) + Number(batch.bonus_quantity || 0);
 
             await connection.query(
                 `INSERT INTO Inventory_Batches 
@@ -56,8 +56,14 @@ export const receiveStock = async (req: Request, res: Response) => {
                     batch.purchased_quantity,
                     batch.bonus_quantity || 0,
                     batch.unit_cost,
-                    currentStock
+                    qty
                 ]
+            );
+
+            // Sync the master Product stock level
+            await connection.query(
+                `UPDATE Products SET current_stock = current_stock + ? WHERE product_id = ?`,
+                [qty, batch.product_id]
             );
         }
 
@@ -86,12 +92,11 @@ export const receiveStock = async (req: Request, res: Response) => {
 
 export const getAlerts = async (req: Request, res: Response) => {
     try {
+        // Now using the optimized 'current_stock' column from Products table
         const [lowStock] = await pool.query<RowDataPacket[]>(
-            `SELECT p.product_id, p.name, p.reorder_threshold, COALESCE(SUM(b.current_stock_level), 0) AS current_stock_level
-             FROM Products p
-             LEFT JOIN Inventory_Batches b ON p.product_id = b.product_id
-             GROUP BY p.product_id
-             HAVING current_stock_level <= p.reorder_threshold AND p.reorder_threshold > 0`
+            `SELECT product_id, name, reorder_threshold, current_stock AS current_stock_level
+             FROM Products
+             WHERE current_stock <= reorder_threshold AND reorder_threshold > 0`
         );
 
         const [nearExpiry] = await pool.query<RowDataPacket[]>(

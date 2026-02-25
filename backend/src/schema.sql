@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS Products (
     name VARCHAR(255) NOT NULL,
     measure_unit VARCHAR(100) NOT NULL,
     category VARCHAR(100),
-    reorder_threshold INT DEFAULT 0
+    reorder_threshold INT DEFAULT 0,
+    current_stock INT DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS Suppliers (

@@ -13,6 +13,7 @@ interface Product {
     measure_unit: string;
     category: string;
     reorder_threshold: number;
+    current_stock: number;
 }
 
 interface AlertData {
@@ -25,7 +26,7 @@ export default function InventoryTab() {
     const [alerts, setAlerts] = useState<AlertData>({ lowStock: [], nearExpiry: [] });
     const [isLoading, setIsLoading] = useState(true);
     const [isOpen, setIsOpen] = useState(false);
-    const [formData, setFormData] = useState({ id: 0, name: '', measure_unit: '', category: '', reorder_threshold: 0 });
+    const [formData, setFormData] = useState({ id: 0, name: '', measure_unit: '', category: '', reorder_threshold: 0, current_stock: 0 });
     const { toast } = useToast();
 
     const loadData = async () => {
@@ -49,7 +50,11 @@ export default function InventoryTab() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const payload = { ...formData, reorder_threshold: Number(formData.reorder_threshold) };
+            const payload = {
+                ...formData,
+                reorder_threshold: Number(formData.reorder_threshold),
+                current_stock: Number(formData.current_stock)
+            };
             if (formData.id) {
                 await fetchWithAuth(`/products/${formData.id}`, { method: 'PUT', body: JSON.stringify(payload) });
                 toast({ title: 'Success', description: 'Product updated.' });
@@ -111,7 +116,7 @@ export default function InventoryTab() {
                     <h2 className="text-2xl font-bold">Products Catalog</h2>
                     <Dialog open={isOpen} onOpenChange={setIsOpen}>
                         <DialogTrigger asChild>
-                            <Button onClick={() => { setFormData({ id: 0, name: '', measure_unit: '', category: '', reorder_threshold: 0 }); setIsOpen(true); }}>
+                            <Button onClick={() => { setFormData({ id: 0, name: '', measure_unit: '', category: '', reorder_threshold: 0, current_stock: 0 }); setIsOpen(true); }}>
                                 Add Product
                             </Button>
                         </DialogTrigger>
@@ -133,6 +138,10 @@ export default function InventoryTab() {
                                     <Input value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} />
                                 </div>
                                 <div className="space-y-2">
+                                    <Label>Current Stock</Label>
+                                    <Input type="number" required value={formData.current_stock} onChange={e => setFormData({ ...formData, current_stock: e.target.value as any })} />
+                                </div>
+                                <div className="space-y-2">
                                     <Label>Reorder Threshold</Label>
                                     <Input type="number" required value={formData.reorder_threshold} onChange={e => setFormData({ ...formData, reorder_threshold: e.target.value as any })} />
                                 </div>
@@ -149,25 +158,27 @@ export default function InventoryTab() {
                             <TableHead>Name</TableHead>
                             <TableHead>Unit</TableHead>
                             <TableHead>Category</TableHead>
+                            <TableHead>Current Stock</TableHead>
                             <TableHead>Min Stock</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {products.map(p => (
-                            <TableRow key={p.product_id}>
+                            <TableRow key={p.product_id} className={p.current_stock <= p.reorder_threshold ? "bg-red-50" : ""}>
                                 <TableCell>{p.product_id}</TableCell>
                                 <TableCell className="font-medium">{p.name}</TableCell>
                                 <TableCell>{p.measure_unit}</TableCell>
                                 <TableCell>{p.category}</TableCell>
+                                <TableCell className="font-bold text-lg text-blue-800">{p.current_stock}</TableCell>
                                 <TableCell>{p.reorder_threshold}</TableCell>
                                 <TableCell className="text-right space-x-2">
-                                    <Button variant="outline" size="sm" onClick={() => { setFormData({ id: p.product_id, name: p.name, measure_unit: p.measure_unit, category: p.category || '', reorder_threshold: p.reorder_threshold }); setIsOpen(true); }}>Edit</Button>
+                                    <Button variant="outline" size="sm" onClick={() => { setFormData({ id: p.product_id, name: p.name, measure_unit: p.measure_unit, category: p.category || '', reorder_threshold: p.reorder_threshold, current_stock: p.current_stock }); setIsOpen(true); }}>Edit</Button>
                                     <Button variant="destructive" size="sm" onClick={() => handleDelete(p.product_id)}>Delete</Button>
                                 </TableCell>
                             </TableRow>
                         ))}
-                        {products.length === 0 && <TableRow><TableCell colSpan={6} className="text-center">No products found.</TableCell></TableRow>}
+                        {products.length === 0 && <TableRow><TableCell colSpan={7} className="text-center">No products found.</TableCell></TableRow>}
                     </TableBody>
                 </Table>
             </div>
