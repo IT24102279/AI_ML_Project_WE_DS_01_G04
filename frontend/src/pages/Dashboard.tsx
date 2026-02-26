@@ -14,6 +14,7 @@ import GRNTab from '@/components/dashboard/GRNTab';
 import FinanceTab from '@/components/dashboard/FinanceTab';
 import PosTab from '@/components/dashboard/PosTab';
 import SettingsTab from '@/components/dashboard/SettingsTab';
+import PatientsTab from '@/components/dashboard/PatientsTab';
 
 interface Permission {
     perm_id: number;
@@ -115,9 +116,10 @@ export default function Dashboard() {
     const canViewGRN = userPerms.includes('VIEW_TAB_GRN');
     const canViewFinance = userPerms.includes('VIEW_TAB_FINANCE');
     const canViewPOS = userPerms.includes('VIEW_TAB_POS');
+    const canManagePatients = userPerms.includes('MANAGE_PATIENTS');
 
     // Determine default tab based on permissions
-    let defaultTab = canViewPOS ? "pos" : (canManageRoles ? "rbac" : (canViewInventory ? "inventory" : (canViewSuppliers ? "suppliers" : "home")));
+    let defaultTab = canViewPOS ? "pos" : (canManagePatients ? "patients" : (canManageRoles ? "rbac" : (canViewInventory ? "inventory" : (canViewSuppliers ? "suppliers" : "home"))));
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-8">
@@ -140,6 +142,7 @@ export default function Dashboard() {
                         {canViewSuppliers && <TabsTrigger value="suppliers">Suppliers</TabsTrigger>}
                         {canViewGRN && <TabsTrigger value="grn">Receive Stock (GRN)</TabsTrigger>}
                         {canViewFinance && <TabsTrigger value="finance">Finance</TabsTrigger>}
+                        {canManagePatients && <TabsTrigger value="patients">Patients</TabsTrigger>}
                     </TabsList>
 
                     {canManageRoles && (
@@ -246,6 +249,12 @@ export default function Dashboard() {
                         </TabsContent>
                     )}
 
+                    {canManagePatients && (
+                        <TabsContent value="patients">
+                            <PatientsTab />
+                        </TabsContent>
+                    )}
+
                     {canViewPOS && (
                         <TabsContent value="pos">
                             <div className="bg-white rounded-xl border shadow-sm p-6">
@@ -254,7 +263,7 @@ export default function Dashboard() {
                         </TabsContent>
                     )}
 
-                    {!canManageRoles && !canViewInventory && !canViewSuppliers && !canViewGRN && !canViewFinance && !canViewPOS && (
+                    {!canManageRoles && !canManagePatients && !canViewInventory && !canViewSuppliers && !canViewGRN && !canViewFinance && !canViewPOS && (
                         <div className="text-center py-20 text-slate-500 bg-white rounded-xl border shadow-sm">
                             <p className="text-xl">Welcome to your dashboard.</p>
                             <p className="text-sm">You do not have any module permissions assigned yet.</p>

@@ -91,17 +91,18 @@ CREATE TABLE IF NOT EXISTS App_Settings (
 -- --- Module 1: Sale & Billing (POS) ---
 
 CREATE TABLE IF NOT EXISTS Patients (
-    patient_id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    phone VARCHAR(50),
-    age INT,
-    gender ENUM('Male', 'Female', 'Other'),
+    patient_id VARCHAR(36) PRIMARY KEY,
+    phone_number_hash VARCHAR(255),
+    encrypted_bio_data TEXT,
+    encrypted_clinical_notes TEXT,
+    birth_year INT,
+    opted_out BOOLEAN NOT NULL DEFAULT FALSE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS Prescriptions (
     prescription_id INT AUTO_INCREMENT PRIMARY KEY,
-    patient_id INT,
+    patient_id VARCHAR(36),
     status ENUM('Pending Verification', 'Verified') NOT NULL DEFAULT 'Pending Verification',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (patient_id) REFERENCES Patients(patient_id) ON DELETE SET NULL
@@ -121,7 +122,7 @@ CREATE TABLE IF NOT EXISTS Prescription_lines (
 CREATE TABLE IF NOT EXISTS Sales_Invoices (
     invoice_id INT AUTO_INCREMENT PRIMARY KEY,
     is_over_the_counter BOOLEAN NOT NULL DEFAULT TRUE,
-    patient_id INT,
+    patient_id VARCHAR(36),
     cashier_id INT NOT NULL,
     prescription_id INT,
     payment_method ENUM('Cash', 'Card', 'Pending') NOT NULL,

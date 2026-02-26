@@ -59,6 +59,14 @@ import { getSettings, updateSetting } from './controllers/settings.controller';
 app.get('/api/settings', authenticateToken, getSettings);
 app.put('/api/settings/:key', authenticateToken, hasPermission('MANAGE_ROLES'), updateSetting);
 
+// --- Patient Routes ---
+import { createPatient, getPatient, searchPatients, getPatientDiscount, optOutPatient } from './controllers/patients.controller';
+app.post('/api/patients', authenticateToken, createPatient);
+app.get('/api/patients/search', authenticateToken, searchPatients);
+app.get('/api/patients/:id/discount', authenticateToken, getPatientDiscount);
+app.get('/api/patients/:id', authenticateToken, getPatient);
+app.delete('/api/patients/:id/opt-out', authenticateToken, hasPermission('MANAGE_PATIENTS'), optOutPatient);
+
 // --- POS Routes ---
 import { processPrescription, saveDraftSale, confirmCheckout, searchPosProducts, getInvoiceReceipt } from './controllers/pos.controller';
 app.post('/api/pos/process-prescription', processPrescription); // Microservice auth

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { io, Socket } from "socket.io-client";
 import { useNavigate } from "react-router-dom";
+import PatientSelector from "../pos/PatientSelector";
 
 interface ProductSearchResult {
     product_id: number;
@@ -60,6 +61,10 @@ export default function PosTab({ currency = '$' }: { currency?: string }) {
     const [openProductBox, setOpenProductBox] = useState<string | null>(null);
     const [searchQueries, setSearchQueries] = useState<Record<string, string>>({});
     const [searchResults, setSearchResults] = useState<Record<string, ProductSearchResult[]>>({});
+
+    // -- Patient Discount Engine --
+    const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+    const [discountPct, setDiscountPct] = useState<number>(0);
 
     // -- AI Webhook State --
     const [aiModalOpen, setAiModalOpen] = useState(false);
@@ -152,8 +157,10 @@ export default function PosTab({ currency = '$' }: { currency?: string }) {
 
     // --- Totals ---
     const cartSubtotal = cart.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
-    const balanceDue = Math.max(0, cartSubtotal - moneyGiven);
-    const changeDue = Math.max(0, moneyGiven - cartSubtotal);
+    const discountAmount = cartSubtotal * (discountPct / 100);
+    const discountedTotal = cartSubtotal - discountAmount;
+    const balanceDue = Math.max(0, discountedTotal - moneyGiven);
+    const changeDue = Math.max(0, moneyGiven - discountedTotal);
 
     // --- AI Autofill Verification ---
     const handleVerifyAiData = () => {
@@ -187,10 +194,11 @@ export default function PosTab({ currency = '$' }: { currency?: string }) {
         setIsCheckingOut(true);
         try {
             const payload = {
-                is_over_the_counter: true,
+                is_over_the_counter: !selectedPatientId,
+                patient_id: selectedPatientId,
                 prescription_id: pendingAiRxId,
                 payment_method: moneyGiven > 0 ? 'Cash' : 'Pending',
-                total_amount: cartSubtotal,
+                total_amount: discountedTotal,
                 money_given: moneyGiven,
                 items: validItems.map(item => ({
                     product_id: item.product_id,
@@ -217,7 +225,15 @@ export default function PosTab({ currency = '$' }: { currency?: string }) {
         <div className="flex flex-col md:flex-row gap-6 pb-20">
             {/* Left Panel: Bill Summary */}
             <div className="md:w-1/3 bg-slate-50 p-6 rounded-xl border border-slate-200 flex flex-col shadow-sm">
-                <h2 className="text-2xl font-bold mb-6 text-slate-800">Current Sale</h2>
+
+                <PatientSelector
+                    onPatientSelect={(id, pct) => {
+                        setSelectedPatientId(id);
+                        setDiscountPct(pct);
+                    }}
+                />
+
+                <h2 className="text-2xl font-bold mb-6 text-slate-800 border-t pt-4">Current Sale</h2>
 
                 <div className="flex-1 overflow-y-auto mb-6">
                     {cart.filter(item => item.product_id !== null).map((item, idx) => (
@@ -235,12 +251,24 @@ export default function PosTab({ currency = '$' }: { currency?: string }) {
                 </div>
 
                 <div className="border-t border-slate-300 pt-4 space-y-3">
-                    <div className="flex justify-between items-center text-lg font-bold">
-                        <span>Total:</span>
-                        <span className="text-2xl text-blue-700">{currency}{cartSubtotal.toFixed(2)}</span>
+                    <div className="flex justify-between items-center text-sm text-slate-500">
+                        <span>Cart Subtotal:</span>
+                        <span>{currency}{cartSubtotal.toFixed(2)}</span>
                     </div>
 
-                    <div className="space-y-1">
+                    {discountPct > 0 && (
+                        <div className="flex justify-between items-center text-sm text-green-600 font-medium">
+                            <span>Patient Discount ({discountPct}%):</span>
+                            <span>-{currency}{discountAmount.toFixed(2)}</span>
+                        </div>
+                    )}
+
+                    <div className="flex justify-between items-center text-lg font-bold border-t pt-2">
+                        <span>Total:</span>
+                        <span className="text-2xl text-blue-700">{currency}{discountedTotal.toFixed(2)}</span>
+                    </div>
+
+                    <div className="space-y-1 mt-4">
                         <Label>Money Given</Label>
                         <Input
                             type="number"
@@ -264,7 +292,7 @@ export default function PosTab({ currency = '$' }: { currency?: string }) {
                     <Button
                         size="lg"
                         className="w-full mt-4 text-lg font-bold py-6"
-                        disabled={isCheckingOut || cartSubtotal === 0 || aiModalOpen}
+                        disabled={isCheckingOut || discountedTotal === 0 || aiModalOpen}
                         onClick={handleCheckout}
                     >
                         {isCheckingOut ? "Processing..." : "Confirm Checkout"}

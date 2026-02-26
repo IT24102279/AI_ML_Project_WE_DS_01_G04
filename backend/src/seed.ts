@@ -27,7 +27,8 @@ async function runSeed() {
         ['VOID_SALE', 'Can cancel a POS transaction'],
         ['MANAGE_ROLES', 'Can modify user roles and permissions'],
         ['ASSIGN_DRIVER', 'Can assign delivery orders to drivers'],
-        ['ADJUST_INVENTORY', 'Can modify stock counts']
+        ['ADJUST_INVENTORY', 'Can modify stock counts'],
+        ['MANAGE_PATIENTS', 'Can manage patient records and profiles']
     ];
 
     for (const [action, desc] of permissionsData) {
