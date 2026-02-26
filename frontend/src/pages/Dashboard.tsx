@@ -7,6 +7,15 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import InventoryTab from '@/components/dashboard/InventoryTab';
+import SuppliersTab from '@/components/dashboard/SuppliersTab';
+import GRNTab from '@/components/dashboard/GRNTab';
+import FinanceTab from '@/components/dashboard/FinanceTab';
+import PosTab from '@/components/dashboard/PosTab';
+import SettingsTab from '@/components/dashboard/SettingsTab';
+import PatientsTab from '@/components/dashboard/PatientsTab';
+
 interface Permission {
     perm_id: number;
     action_name: string;
@@ -22,27 +31,29 @@ interface Role {
 export default function Dashboard() {
     const [roles, setRoles] = useState<Role[]>([]);
     const [permissions, setPermissions] = useState<Permission[]>([]);
+    const [settings, setSettings] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const navigate = useNavigate();
     const { toast } = useToast();
 
     // The logged-in user
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const user = JSON.parse(localStorage.getItem('user') || '{}') as any;
 
     const loadData = async () => {
         try {
             setIsLoading(true);
-            const [rolesData, permsData] = await Promise.all([
-                fetchWithAuth('/roles'),
-                fetchWithAuth('/permissions')
+            const [rolesData, permsData, settingsData] = await Promise.all([
+                fetchWithAuth('/roles').catch(() => ({ roles: [] })),
+                fetchWithAuth('/permissions').catch(() => ({ permissions: [] })),
+                fetchWithAuth('/settings').catch(() => ({}))
             ]);
-            setRoles(rolesData.roles);
-            setPermissions(permsData.permissions);
+            setRoles(rolesData.roles || []);
+            setPermissions(permsData.permissions || []);
+            setSettings(settingsData || {});
         } catch (error: any) {
-            toast({ title: 'Error', description: error.message, variant: 'destructive' });
             if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
-                navigate('/login');
+                if (!localStorage.getItem('token')) navigate('/login');
             }
         } finally {
             setIsLoading(false);
@@ -96,84 +107,170 @@ export default function Dashboard() {
         navigate('/login');
     };
 
-    if (isLoading) return <div className="p-8 text-center text-lg">Loading RBAC matrix...</div>;
+    if (isLoading) return <div className="p-8 text-center text-lg">Loading Dashboard...</div>;
 
-    const canManageRoles = user.permissions?.includes('MANAGE_ROLES');
+    const userPerms: string[] = user.permissions || [];
+    const canManageRoles = userPerms.includes('MANAGE_ROLES');
+    const canViewInventory = userPerms.includes('VIEW_TAB_INVENTORY');
+    const canViewSuppliers = userPerms.includes('VIEW_TAB_SUPPLIERS');
+    const canViewGRN = userPerms.includes('VIEW_TAB_GRN');
+    const canViewFinance = userPerms.includes('VIEW_TAB_FINANCE');
+    const canViewPOS = userPerms.includes('VIEW_TAB_POS');
+    const canManagePatients = userPerms.includes('MANAGE_PATIENTS');
+
+    // Determine default tab based on permissions
+    let defaultTab = canViewPOS ? "pos" : (canManagePatients ? "patients" : (canManageRoles ? "rbac" : (canViewInventory ? "inventory" : (canViewSuppliers ? "suppliers" : "home"))));
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-8">
             <div className="max-w-6xl mx-auto space-y-6">
 
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border">
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Pharmacy Dashboard</h1>
-                        <p className="text-slate-500">Welcome back, {user.name} ({user.role})</p>
+                        <h1 className="text-3xl font-bold tracking-tight text-blue-900">Pharmacy POS System</h1>
+                        <p className="text-slate-500 mt-1">Logged in as <span className="font-semibold text-slate-800">{user.name}</span> ({user.role})</p>
                     </div>
-                    <Button variant="outline" onClick={handleLogout}>Logout</Button>
+                    <Button variant="outline" onClick={handleLogout} className="border-red-200 text-red-600 hover:bg-red-50">Logout</Button>
                 </div>
 
-                {!canManageRoles && (
-                    <Card>
-                        <CardContent className="p-6">
-                            <p className="text-lg font-medium text-center text-amber-600">
-                                You do not have the MANAGE_ROLES permission. You cannot view or edit the RBAC matrix.
-                            </p>
-                        </CardContent>
-                    </Card>
-                )}
+                <Tabs defaultValue={defaultTab} className="w-full">
+                    <TabsList className="mb-6 bg-white border shadow-sm p-1 rounded-lg">
+                        {canManageRoles && <TabsTrigger value="rbac">Roles & Permissions</TabsTrigger>}
+                        {canManageRoles && <TabsTrigger value="settings">App Settings</TabsTrigger>}
+                        {canViewPOS && <TabsTrigger value="pos" className="bg-blue-50 text-blue-700 data-[state=active]:bg-blue-600 data-[state=active]:text-white">Point of Sale (POS)</TabsTrigger>}
+                        {canViewInventory && <TabsTrigger value="inventory">Products / Alerts</TabsTrigger>}
+                        {canViewSuppliers && <TabsTrigger value="suppliers">Suppliers</TabsTrigger>}
+                        {canViewGRN && <TabsTrigger value="grn">Receive Stock (GRN)</TabsTrigger>}
+                        {canViewFinance && <TabsTrigger value="finance">Finance</TabsTrigger>}
+                        {canManagePatients && <TabsTrigger value="patients">Patients</TabsTrigger>}
+                    </TabsList>
 
-                {canManageRoles && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Role & Permission Manager GUI</CardTitle>
-                        </CardHeader>
-                        <CardContent className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-[150px]">Roles</TableHead>
-                                        {permissions.map(perm => (
-                                            <TableHead key={perm.perm_id} className="text-center text-xs whitespace-nowrap px-2">
-                                                {perm.action_name.replace('_', ' ')}
-                                            </TableHead>
-                                        ))}
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {roles.map(role => (
-                                        <TableRow key={role.role_id}>
-                                            <TableCell className="font-medium">{role.role_name}</TableCell>
+                    {canManageRoles && (
+                        <TabsContent value="rbac">
+                            <Card className="shadow-sm">
+                                <CardHeader>
+                                    <CardTitle>Role & Permission Manager GUI</CardTitle>
+                                </CardHeader>
+                                <CardContent className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead className="w-[150px]">Roles</TableHead>
+                                                {permissions.map(perm => (
+                                                    <TableHead key={perm.perm_id} className="text-center text-xs whitespace-nowrap px-2">
+                                                        {perm.action_name.replace(/_/g, ' ')}
+                                                    </TableHead>
+                                                ))}
+                                                <TableHead className="text-right">Actions</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {roles.map(role => (
+                                                <TableRow key={role.role_id}>
+                                                    <TableCell className="font-medium">{role.role_name}</TableCell>
 
-                                            {permissions.map(perm => {
-                                                const isChecked = role.permissions.some(p => p.perm_id === perm.perm_id);
-                                                return (
-                                                    <TableCell key={perm.perm_id} className="text-center">
-                                                        <Checkbox
-                                                            checked={isChecked}
-                                                            onCheckedChange={() => togglePermission(role.role_id, perm.perm_id)}
-                                                        />
+                                                    {permissions.map(perm => {
+                                                        const isChecked = role.permissions.some(p => p.perm_id === perm.perm_id);
+                                                        return (
+                                                            <TableCell key={perm.perm_id} className="text-center bg-slate-50/50">
+                                                                <Checkbox
+                                                                    checked={isChecked}
+                                                                    onCheckedChange={() => togglePermission(role.role_id, perm.perm_id)}
+                                                                />
+                                                            </TableCell>
+                                                        );
+                                                    })}
+
+                                                    <TableCell className="text-right">
+                                                        <Button size="sm" onClick={() => handleSave(role.role_id)} disabled={isSaving}>
+                                                            Save Matrix
+                                                        </Button>
                                                     </TableCell>
-                                                );
-                                            })}
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    )}
 
-                                            <TableCell className="text-right">
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => handleSave(role.role_id)}
-                                                    disabled={isSaving}
-                                                >
-                                                    Save
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                )}
+                    {canManageRoles && (
+                        <TabsContent value="settings">
+                            <Card className="shadow-sm">
+                                <CardHeader>
+                                    <CardTitle>Pharmacy Layout Settings</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <SettingsTab />
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    )}
 
+                    {canViewInventory && (
+                        <TabsContent value="inventory">
+                            <Card className="shadow-sm">
+                                <CardContent className="p-6">
+                                    <InventoryTab />
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    )}
+
+                    {canViewSuppliers && (
+                        <TabsContent value="suppliers">
+                            <Card className="shadow-sm">
+                                <CardContent className="p-6">
+                                    <SuppliersTab />
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    )}
+
+                    {canViewGRN && (
+                        <TabsContent value="grn">
+                            <div className="bg-white rounded-xl border shadow-sm p-6">
+                                <GRNTab currency={settings.currency || '$'} />
+                            </div>
+                        </TabsContent>
+                    )}
+
+                    {canViewFinance && (
+                        <TabsContent value="finance">
+                            <Card className="shadow-sm">
+                                <CardContent className="p-6">
+                                    <FinanceTab
+                                        currency={settings.currency || '$'}
+                                        onCurrencyChange={(val) => setSettings({ ...settings, currency: val })}
+                                    />
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    )}
+
+                    {canManagePatients && (
+                        <TabsContent value="patients">
+                            <PatientsTab />
+                        </TabsContent>
+                    )}
+
+                    {canViewPOS && (
+                        <TabsContent value="pos">
+                            <div className="bg-white rounded-xl border shadow-sm p-6">
+                                <PosTab currency={settings.currency || '$'} />
+                            </div>
+                        </TabsContent>
+                    )}
+
+                    {!canManageRoles && !canManagePatients && !canViewInventory && !canViewSuppliers && !canViewGRN && !canViewFinance && !canViewPOS && (
+                        <div className="text-center py-20 text-slate-500 bg-white rounded-xl border shadow-sm">
+                            <p className="text-xl">Welcome to your dashboard.</p>
+                            <p className="text-sm">You do not have any module permissions assigned yet.</p>
+                        </div>
+                    )}
+
+                </Tabs>
             </div>
         </div>
     );

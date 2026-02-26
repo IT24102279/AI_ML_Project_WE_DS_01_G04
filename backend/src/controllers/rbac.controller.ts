@@ -1,30 +1,36 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import pool from '../db';
+import { RowDataPacket } from 'mysql2';
 
-const prisma = new PrismaClient();
 
 export const getAllRoles = async (req: Request, res: Response) => {
     try {
-        const rolesData = await prisma.role.findMany({
-            include: {
-                role_permissions: {
-                    include: {
-                        permission: true,
-                    },
-                },
-            },
+        const [rows] = await pool.query<RowDataPacket[]>(
+            `SELECT r.role_id, r.role_name, r.description, p.perm_id, p.action_name 
+             FROM Role r 
+             LEFT JOIN Role_Permission rp ON r.role_id = rp.role_id 
+             LEFT JOIN Permission p ON rp.perm_id = p.perm_id`
+        );
+
+        const rolesMap = new Map<number, any>();
+        rows.forEach(row => {
+            if (!rolesMap.has(row.role_id)) {
+                rolesMap.set(row.role_id, {
+                    role_id: row.role_id,
+                    role_name: row.role_name,
+                    description: row.description,
+                    permissions: []
+                });
+            }
+            if (row.perm_id) {
+                rolesMap.get(row.role_id).permissions.push({
+                    perm_id: row.perm_id,
+                    action_name: row.action_name
+                });
+            }
         });
 
-        const roles = rolesData.map((role) => ({
-            role_id: role.role_id,
-            role_name: role.role_name,
-            description: role.description,
-            permissions: role.role_permissions.map((rp) => ({
-                perm_id: rp.permission.perm_id,
-                action_name: rp.permission.action_name,
-            })),
-        }));
-
+        const roles = Array.from(rolesMap.values());
         res.status(200).json({ roles });
     } catch (error) {
         console.error(error);
@@ -34,7 +40,7 @@ export const getAllRoles = async (req: Request, res: Response) => {
 
 export const getAllPermissions = async (req: Request, res: Response) => {
     try {
-        const permissions = await prisma.permission.findMany();
+        const [permissions] = await pool.query<RowDataPacket[]>('SELECT * FROM Permission');
         res.status(200).json({ permissions });
     } catch (error) {
         console.error(error);
@@ -44,31 +50,34 @@ export const getAllPermissions = async (req: Request, res: Response) => {
 
 export const updateRolePermissions = async (req: Request, res: Response) => {
     try {
-        const roleId = parseInt(req.params.id);
+        const roleId = parseInt(req.params.id as string);
         const { permission_ids } = req.body;
 
         if (isNaN(roleId) || !Array.isArray(permission_ids)) {
             return res.status(400).json({ error: 'Invalid payload.' });
         }
 
-        // Wrap in a transaction: Delete old mappings, create new ones
-        await prisma.$transaction(async (tx) => {
-            // 1. Delete all existing permissions for this role
-            await tx.role_Permission.deleteMany({
-                where: { role_id: roleId },
-            });
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
 
-            // 2. Insert new permissions
+            // 1. Delete existing
+            await connection.query('DELETE FROM Role_Permission WHERE role_id = ?', [roleId]);
+
+            // 2. Insert new
             if (permission_ids.length > 0) {
-                const newMappings = permission_ids.map((perm_id: number) => ({
-                    role_id: roleId,
-                    perm_id: perm_id,
-                }));
-                await tx.role_Permission.createMany({
-                    data: newMappings,
-                });
+                const placeholders = permission_ids.map(() => '(?, ?)').join(', ');
+                const values = permission_ids.flatMap((perm_id: number) => [roleId, perm_id]);
+                await connection.query(`INSERT INTO Role_Permission (role_id, perm_id) VALUES ${placeholders}`, values);
             }
-        });
+
+            await connection.commit();
+        } catch (err) {
+            await connection.rollback();
+            throw err;
+        } finally {
+            connection.release();
+        }
 
         res.status(200).json({
             message: 'Role permissions updated successfully.',
