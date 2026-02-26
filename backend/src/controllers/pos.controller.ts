@@ -183,8 +183,7 @@ export const searchPosProducts = async (req: AuthRequest, res: Response) => {
     const { q } = req.query;
     try {
         let queryStr = `
-            SELECT p.product_id, p.name, p.measure_unit, p.current_stock as total_stock,
-            (SELECT unit_cost FROM Inventory_Batches WHERE product_id = p.product_id AND current_stock_level > 0 ORDER BY expiry_date ASC LIMIT 1) as selling_price
+            SELECT p.product_id, p.name, p.measure_unit, p.current_stock as total_stock, p.selling_price
             FROM Products p
         `;
         let queryParams: any[] = [];
