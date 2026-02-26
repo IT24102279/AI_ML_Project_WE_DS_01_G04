@@ -149,9 +149,14 @@ export default function CustomerChat() {
 
             {/* Main Chat Area */}
             <div className="w-full md:w-2/3 bg-white border rounded-lg shadow-sm flex flex-col overflow-hidden">
-                <div className="bg-blue-50 border-b p-4">
-                    <h1 className="text-xl font-bold text-blue-900">Pharmacy AI Support</h1>
-                    <p className="text-sm text-blue-700">Powered by our local LLM model & Staff verified.</p>
+                <div className="bg-blue-50 border-b p-4 flex justify-between items-center">
+                    <div>
+                        <h1 className="text-xl font-bold text-blue-900">Pharmacy AI Support</h1>
+                        <p className="text-sm text-blue-700">Powered by our local LLM model & Staff verified.</p>
+                    </div>
+                    <a href="/shop" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors text-sm flex items-center gap-2">
+                        🛒 Shop Groceries
+                    </a>
                 </div>
 
                 <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-4 bg-slate-50/50">
@@ -160,8 +165,8 @@ export default function CustomerChat() {
                     )}
                     {messages.map((m, idx) => (
                         <div key={idx} className={`max-w-[80%] rounded-lg p-3 ${m.sender === 'Customer' ? 'bg-blue-600 text-white self-end rounded-br-none' :
-                                m.sender === 'LLM' ? 'bg-slate-200 text-slate-900 self-start rounded-bl-none' :
-                                    'bg-emerald-100 border border-emerald-200 text-emerald-900 self-start rounded-bl-none shadow-sm'
+                            m.sender === 'LLM' ? 'bg-slate-200 text-slate-900 self-start rounded-bl-none' :
+                                'bg-emerald-100 border border-emerald-200 text-emerald-900 self-start rounded-bl-none shadow-sm'
                             }`}>
                             {m.sender === 'Pharmacist' && <div className="text-xs font-bold text-emerald-700 mb-1 flex items-center gap-1">⚕️ Pharmacist Connected</div>}
                             {m.sender === 'LLM' && <div className="text-xs font-bold text-slate-500 mb-1">🤖 Virtual Assistant</div>}

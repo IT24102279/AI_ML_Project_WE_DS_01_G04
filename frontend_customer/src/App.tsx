@@ -1,6 +1,8 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import CustomerChat from './components/CustomerChat';
 import AdminDashboard from './components/AdminDashboard';
+import ShopCustomer from './components/ShopCustomer';
+import DriverApp from './components/DriverApp';
 
 function App() {
     return (
@@ -12,7 +14,9 @@ function App() {
 
                 <Routes>
                     <Route path="/" element={<CustomerChat />} />
+                    <Route path="/shop" element={<ShopCustomer />} />
                     <Route path="/admin" element={<AdminDashboard />} />
+                    <Route path="/driver" element={<DriverApp />} />
                 </Routes>
             </div>
         </Router>
