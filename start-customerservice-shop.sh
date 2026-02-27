@@ -20,7 +20,7 @@ if [ ! -d "node_modules" ]; then
 fi
 
 echo -e "${YELLOW}▶ Setting up isolated Customer Database Schema...${NC}"
-mysql -h 127.0.0.1 -u root -proot pharmacy_customer_db < src/schema.sql 2>/dev/null || echo -e "  (Schema already exists or was seeded)"
+/tmp/fnm/fnm exec --using=20 npx --yes tsx src/seed.ts || echo -e "  (Schema already exists or was seeded)"
 
 # Start Backend using fnm node 20
 echo -e "${BLUE}▶ Starting Node.js Backend Server on Port 4000...${NC}"

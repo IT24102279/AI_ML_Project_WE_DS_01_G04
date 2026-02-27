@@ -8,9 +8,9 @@ if (-not (Test-Path "node_modules")) {
 
 Write-Host "▶ Setting up isolated Customer Database..." -ForegroundColor Yellow
 try {
-    Get-Content src/schema.sql | mysql -h 127.0.0.1 -u root -proot pharmacy_customer_db 2>$null
+    Start-Process -NoNewWindow -Wait -FilePath "npx.cmd" -ArgumentList "tsx src/seed.ts"
 } catch {
-    Write-Host "  (Schema already exists, was seeded, or mysql CLI is unavailable)"
+    Write-Host "  (Database initialization encountered an issue)"
 }
 
 Write-Host "▶ Starting Node.js Backend Server on Port 4000..." -ForegroundColor Cyan
