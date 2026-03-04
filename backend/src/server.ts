@@ -60,12 +60,15 @@ app.get('/api/settings', authenticateToken, getSettings);
 app.put('/api/settings/:key', authenticateToken, hasPermission('MANAGE_ROLES'), updateSetting);
 
 // --- Patient Routes ---
-import { createPatient, getPatient, searchPatients, getPatientDiscount, optOutPatient } from './controllers/patients.controller';
-app.post('/api/patients', authenticateToken, createPatient);
+import { createPatient, getPatient, searchPatients, getPatientDiscount, optOutPatient, updatePatient } from './controllers/patients.controller';
+import { auditLogMiddleware } from './utils/auditLogger';
+
+app.post('/api/patients', authenticateToken, auditLogMiddleware('CREATE_PATIENT'), createPatient);
 app.get('/api/patients/search', authenticateToken, searchPatients);
 app.get('/api/patients/:id/discount', authenticateToken, getPatientDiscount);
 app.get('/api/patients/:id', authenticateToken, getPatient);
-app.delete('/api/patients/:id/opt-out', authenticateToken, hasPermission('MANAGE_PATIENTS'), optOutPatient);
+app.put('/api/patients/:id', authenticateToken, hasPermission('MANAGE_PATIENTS'), auditLogMiddleware('UPDATE_PATIENT'), updatePatient);
+app.delete('/api/patients/:id/opt-out', authenticateToken, hasPermission('MANAGE_PATIENTS'), auditLogMiddleware('DELETE_PATIENT_DATA'), optOutPatient);
 
 // --- POS Routes ---
 import { processPrescription, saveDraftSale, confirmCheckout, searchPosProducts, getInvoiceReceipt } from './controllers/pos.controller';

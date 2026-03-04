@@ -6,7 +6,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { ShieldAlert, UserX, Receipt, FileText, AlertTriangle } from 'lucide-react';
+import { ShieldAlert, UserX, Receipt, FileText, AlertTriangle, Edit } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 interface PatientProfileProps {
     patientId: string;
@@ -18,6 +21,8 @@ export default function PatientProfile({ patientId, isOpen, onClose }: PatientPr
     const [patient, setPatient] = useState<any>(null);
     const [discountData, setDiscountData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editForm, setEditForm] = useState({ name: '', phone: '', address: '', birth_year: '', clinical_notes: '' });
     const { toast } = useToast();
 
     useEffect(() => {
@@ -35,6 +40,13 @@ export default function PatientProfile({ patientId, isOpen, onClose }: PatientPr
             ]);
             setPatient(profile);
             setDiscountData(discount);
+            setEditForm({
+                name: profile.name || '',
+                phone: profile.phone || '',
+                address: profile.address || '',
+                birth_year: profile.birth_year || '',
+                clinical_notes: profile.clinical_notes || ''
+            });
         } catch (error: any) {
             toast({ title: 'Error loading profile', description: error.message, variant: 'destructive' });
             onClose();
@@ -54,6 +66,21 @@ export default function PatientProfile({ patientId, isOpen, onClose }: PatientPr
             onClose();
         } catch (error: any) {
             toast({ title: 'Opt-Out Failed', description: error.message, variant: 'destructive' });
+        }
+    };
+
+    const handleUpdate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            await fetchWithAuth(`/patients/${patientId}`, {
+                method: 'PUT',
+                body: JSON.stringify({ ...editForm, birth_year: Number(editForm.birth_year) })
+            });
+            toast({ title: 'Profile Updated', description: 'Patient details have been updated successfully.' });
+            setIsEditing(false);
+            loadPatientData();
+        } catch (error: any) {
+            toast({ title: 'Update Failed', description: error.message, variant: 'destructive' });
         }
     };
 
@@ -84,9 +111,14 @@ export default function PatientProfile({ patientId, isOpen, onClose }: PatientPr
                             </DialogDescription>
                         </div>
                         {!patient.opted_out && (
-                            <Button variant="destructive" onClick={handleOptOut} className="gap-2">
-                                <UserX className="w-4 h-4" /> Process Opt-Out (GDPR)
-                            </Button>
+                            <div className="flex gap-2">
+                                <Button variant="outline" onClick={() => setIsEditing(!isEditing)} className="gap-2">
+                                    <Edit className="w-4 h-4" /> {isEditing ? 'Cancel Edit' : 'Edit Profile'}
+                                </Button>
+                                <Button variant="destructive" onClick={handleOptOut} className="gap-2">
+                                    <UserX className="w-4 h-4" /> Process Opt-Out (GDPR)
+                                </Button>
+                            </div>
                         )}
                     </div>
                 </DialogHeader>
@@ -94,27 +126,58 @@ export default function PatientProfile({ patientId, isOpen, onClose }: PatientPr
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                     {/* Bio Data Section */}
                     <div className="col-span-1 md:col-span-2 space-y-4">
-                        <div className="bg-slate-50 p-4 rounded-lg border">
-                            <h3 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
-                                <ShieldAlert className="w-4 h-4 text-blue-500" /> Decrypted Bio Data
-                            </h3>
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <span className="text-slate-500 block text-xs uppercase tracking-wider">Phone</span>
-                                    <span className="font-medium">{patient.phone || 'N/A'}</span>
+                        {isEditing ? (
+                            <form onSubmit={handleUpdate} className="bg-slate-50 p-4 rounded-lg border space-y-4">
+                                <h3 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                                    <Edit className="w-4 h-4 text-blue-500" /> Edit Bio Data
+                                </h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Full Name *</Label>
+                                        <Input required value={editForm.name} onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Phone *</Label>
+                                        <Input required value={editForm.phone} onChange={e => setEditForm(prev => ({ ...prev, phone: e.target.value }))} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Birth Year *</Label>
+                                        <Input required type="number" min="1900" max={new Date().getFullYear()} value={editForm.birth_year} onChange={e => setEditForm(prev => ({ ...prev, birth_year: e.target.value }))} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Address</Label>
+                                        <Input value={editForm.address} onChange={e => setEditForm(prev => ({ ...prev, address: e.target.value }))} />
+                                    </div>
+                                    <div className="col-span-2 space-y-2">
+                                        <Label>Clinical Notes</Label>
+                                        <Textarea value={editForm.clinical_notes} onChange={e => setEditForm(prev => ({ ...prev, clinical_notes: e.target.value }))} />
+                                    </div>
                                 </div>
-                                <div>
-                                    <span className="text-slate-500 block text-xs uppercase tracking-wider">Birth Year</span>
-                                    <span className="font-medium">{patient.birth_year} (Age: {new Date().getFullYear() - patient.birth_year})</span>
-                                </div>
-                                <div className="col-span-2">
-                                    <span className="text-slate-500 block text-xs uppercase tracking-wider">Address</span>
-                                    <span className="font-medium">{patient.address || 'N/A'}</span>
+                                <Button type="submit" className="w-full">Save Changes</Button>
+                            </form>
+                        ) : (
+                            <div className="bg-slate-50 p-4 rounded-lg border">
+                                <h3 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                                    <ShieldAlert className="w-4 h-4 text-blue-500" /> Decrypted Bio Data
+                                </h3>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <span className="text-slate-500 block text-xs uppercase tracking-wider">Phone</span>
+                                        <span className="font-medium">{patient.phone || 'N/A'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block text-xs uppercase tracking-wider">Birth Year</span>
+                                        <span className="font-medium">{patient.birth_year} (Age: {new Date().getFullYear() - patient.birth_year})</span>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <span className="text-slate-500 block text-xs uppercase tracking-wider">Address</span>
+                                        <span className="font-medium">{patient.address || 'N/A'}</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
 
-                        {patient.clinical_notes && (
+                        {!isEditing && patient.clinical_notes && (
                             <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
                                 <h3 className="font-semibold text-amber-800 mb-2 flex items-center gap-2">
                                     <AlertTriangle className="w-4 h-4" /> Clinical Warnings & Allergies

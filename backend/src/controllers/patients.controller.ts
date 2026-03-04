@@ -41,6 +41,41 @@ export const createPatient = async (req: Request, res: Response) => {
     }
 };
 
+export const updatePatient = async (req: Request, res: Response) => {
+    try {
+        const patientId = req.params.id;
+        const { name, phone, address, birth_year, clinical_notes } = req.body;
+
+        if (!name || !phone || !birth_year) {
+            return res.status(400).json({ error: 'Name, phone, and birth year are required.' });
+        }
+
+        const phone_number_hash = hashSearchableData(phone);
+
+        const bioDataObj = { name, phone, address };
+        const encrypted_bio_data = encryptData(JSON.stringify(bioDataObj));
+
+        const clinicalNotesObj = { clinical_notes: clinical_notes || '' };
+        const encrypted_clinical_notes = encryptData(JSON.stringify(clinicalNotesObj));
+
+        const [result]: any = await pool.query(
+            `UPDATE Patients 
+             SET phone_number_hash = ?, encrypted_bio_data = ?, encrypted_clinical_notes = ?, birth_year = ? 
+             WHERE patient_id = ? AND opted_out = FALSE`,
+            [phone_number_hash, encrypted_bio_data, encrypted_clinical_notes, birth_year, patientId]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Patient not found or opted out.' });
+        }
+
+        res.status(200).json({ message: 'Patient updated successfully' });
+    } catch (error) {
+        console.error('Update Patient Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
 export const getPatient = async (req: Request, res: Response) => {
     try {
         const patientId = req.params.id;
