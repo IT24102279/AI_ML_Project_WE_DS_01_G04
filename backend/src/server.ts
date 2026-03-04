@@ -82,9 +82,9 @@ app.get('/api/pos/invoice/:id', authenticateToken, hasPermission('VIEW_TAB_POS')
 import {
     getAuditLogs, deleteAuditLog, exportAuditLogs,
     getFinancialAnalytics,
-    addExpense, deleteExpense,
-    addPayrollEntry, updatePayrollEntry, deletePayrollEntry,
-    updateEmployeeSalary
+    getExpenses, addExpense, updateExpense, deleteExpense,
+    getPayrollEntries, addPayrollEntry, updatePayrollEntry, deletePayrollEntry,
+    getEmployees, updateEmployeeSalary
 } from './controllers/analyticsController';
 
 app.get('/api/admin/audit-logs', authenticateToken, hasPermission('VIEW_DASHBOARD'), getAuditLogs);
@@ -93,14 +93,18 @@ app.get('/api/admin/audit-logs/export', authenticateToken, hasPermission('VIEW_D
 
 app.get('/api/admin/financial-analytics', authenticateToken, hasPermission('VIEW_TAB_FINANCE'), getFinancialAnalytics);
 
-app.post('/api/admin/financial-analytics/expenses', authenticateToken, hasPermission('MANAGE_FINANCE'), addExpense);
-app.delete('/api/admin/financial-analytics/expenses/:id', authenticateToken, hasPermission('MANAGE_FINANCE'), deleteExpense);
+app.get('/api/admin/financial-analytics/expenses', authenticateToken, hasPermission('MANAGE_FINANCE'), getExpenses);
+app.post('/api/admin/financial-analytics/expenses', authenticateToken, hasPermission('MANAGE_FINANCE'), auditLogMiddleware('CREATE_EXPENSE'), addExpense);
+app.put('/api/admin/financial-analytics/expenses/:id', authenticateToken, hasPermission('MANAGE_FINANCE'), auditLogMiddleware('UPDATE_EXPENSE'), updateExpense);
+app.delete('/api/admin/financial-analytics/expenses/:id', authenticateToken, hasPermission('MANAGE_FINANCE'), auditLogMiddleware('DELETE_EXPENSE'), deleteExpense);
 
-app.post('/api/admin/financial-analytics/payroll', authenticateToken, hasPermission('MANAGE_PAYROLL'), addPayrollEntry);
-app.put('/api/admin/financial-analytics/payroll/:id', authenticateToken, hasPermission('MANAGE_PAYROLL'), updatePayrollEntry);
-app.delete('/api/admin/financial-analytics/payroll/:id', authenticateToken, hasPermission('MANAGE_PAYROLL'), deletePayrollEntry);
+app.get('/api/admin/financial-analytics/payroll', authenticateToken, hasPermission('MANAGE_PAYROLL'), getPayrollEntries);
+app.post('/api/admin/financial-analytics/payroll', authenticateToken, hasPermission('MANAGE_PAYROLL'), auditLogMiddleware('CREATE_PAYROLL'), addPayrollEntry);
+app.put('/api/admin/financial-analytics/payroll/:id', authenticateToken, hasPermission('MANAGE_PAYROLL'), auditLogMiddleware('UPDATE_PAYROLL'), updatePayrollEntry);
+app.delete('/api/admin/financial-analytics/payroll/:id', authenticateToken, hasPermission('MANAGE_PAYROLL'), auditLogMiddleware('DELETE_PAYROLL'), deletePayrollEntry);
 
-app.put('/api/admin/employees/:id/salary', authenticateToken, hasPermission('MANAGE_PAYROLL'), updateEmployeeSalary);
+app.get('/api/admin/employees', authenticateToken, hasPermission('MANAGE_PAYROLL'), getEmployees);
+app.put('/api/admin/employees/:id/salary', authenticateToken, hasPermission('MANAGE_PAYROLL'), auditLogMiddleware('UPDATE_EMPLOYEE_SALARY'), updateEmployeeSalary);
 
 // Basic health check
 app.get('/api/health', (req, res) => {

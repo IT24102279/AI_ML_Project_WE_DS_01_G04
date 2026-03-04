@@ -213,6 +213,16 @@ export const getFinancialAnalytics = async (req: Request, res: Response) => {
 };
 
 // CRUD: Operating Expenses
+export const getExpenses = async (req: Request, res: Response) => {
+    try {
+        const [rows] = await pool.query(`SELECT * FROM Operating_Expenses ORDER BY recorded_date DESC`);
+        res.json(rows);
+    } catch (e) {
+        console.error("Error fetching expenses:", e);
+        res.status(500).json({ error: "Server Error" });
+    }
+};
+
 export const addExpense = async (req: Request, res: Response) => {
     try {
         const { amount, category, description, recorded_date } = req.body;
@@ -222,6 +232,21 @@ export const addExpense = async (req: Request, res: Response) => {
         );
         res.json({ expense_id: result.insertId, status: "Created" });
     } catch (e) {
+        console.error("Error adding expense:", e);
+        res.status(500).json({ error: "Server Error" });
+    }
+};
+
+export const updateExpense = async (req: Request, res: Response) => {
+    try {
+        const { amount, category, description, recorded_date } = req.body;
+        await pool.query(
+            `UPDATE Operating_Expenses SET amount = ?, category = ?, description = ?, recorded_date = ? WHERE expense_id = ?`,
+            [amount, category, description, recorded_date, req.params.id]
+        );
+        res.json({ status: "Updated" });
+    } catch (e) {
+        console.error("Error updating expense:", e);
         res.status(500).json({ error: "Server Error" });
     }
 };
@@ -231,11 +256,27 @@ export const deleteExpense = async (req: Request, res: Response) => {
         await pool.query(`DELETE FROM Operating_Expenses WHERE expense_id = ?`, [req.params.id]);
         res.json({ status: "Deleted" });
     } catch (e) {
+        console.error("Error deleting expense:", e);
         res.status(500).json({ error: "Server Error" });
     }
 };
 
 // CRUD: Payroll
+export const getPayrollEntries = async (req: Request, res: Response) => {
+    try {
+        const [rows] = await pool.query(`
+            SELECT p.*, e.name as employee_name 
+            FROM Payroll p
+            JOIN Employee e ON p.emp_id = e.emp_id
+            ORDER BY p.payment_date DESC
+        `);
+        res.json(rows);
+    } catch (e) {
+        console.error("Error fetching payroll entries:", e);
+        res.status(500).json({ error: "Server Error" });
+    }
+};
+
 export const addPayrollEntry = async (req: Request, res: Response) => {
     try {
         const { emp_id, gross_pay, deductions, net_salary, pay_period_start, pay_period_end, payment_date } = req.body;
@@ -245,6 +286,7 @@ export const addPayrollEntry = async (req: Request, res: Response) => {
         );
         res.json({ payroll_id: result.insertId, status: "Created" });
     } catch (e) {
+        console.error("Error adding payroll entry:", e);
         res.status(500).json({ error: "Server Error" });
     }
 };
@@ -258,6 +300,7 @@ export const updatePayrollEntry = async (req: Request, res: Response) => {
         );
         res.json({ status: "Updated" });
     } catch (e) {
+        console.error("Error updating payroll entry:", e);
         res.status(500).json({ error: "Server Error" });
     }
 };
@@ -267,11 +310,25 @@ export const deletePayrollEntry = async (req: Request, res: Response) => {
         await pool.query(`DELETE FROM Payroll WHERE payroll_id = ?`, [req.params.id]);
         res.json({ status: "Deleted" });
     } catch (e) {
+        console.error("Error deleting payroll entry:", e);
         res.status(500).json({ error: "Server Error" });
     }
 };
 
 // CRUD: Employee Salary
+export const getEmployees = async (req: Request, res: Response) => {
+    try {
+        const [rows] = await pool.query(`
+            SELECT emp_id, name, email, role_id, base_salary, hourly_rate, standard_deductions 
+            FROM Employee
+        `);
+        res.json(rows);
+    } catch (e) {
+        console.error("Error fetching employees:", e);
+        res.status(500).json({ error: "Server Error" });
+    }
+};
+
 export const updateEmployeeSalary = async (req: Request, res: Response) => {
     try {
         const { base_salary, hourly_rate, standard_deductions } = req.body;
@@ -281,6 +338,7 @@ export const updateEmployeeSalary = async (req: Request, res: Response) => {
         );
         res.json({ status: "Updated", message: "Employee salary details updated" });
     } catch (e) {
+        console.error("Error updating employee salary:", e);
         res.status(500).json({ error: "Server Error" });
     }
 };

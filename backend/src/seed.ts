@@ -14,6 +14,20 @@ async function runSeed() {
         await pool.query(stmt);
     }
 
+    console.log("Ensuring Employee table has salary columns...");
+    try {
+        // Since CREATE TABLE IF NOT EXISTS doesn't update existing tables, we manually ensure columns exist here
+        await pool.query('ALTER TABLE Employee ADD COLUMN base_salary DECIMAL(10,2) DEFAULT 0.00');
+    } catch (e: any) { if (e.code !== 'ER_DUP_COLUMN_NAME') console.error(e); }
+
+    try {
+        await pool.query('ALTER TABLE Employee ADD COLUMN hourly_rate DECIMAL(10,2) DEFAULT NULL');
+    } catch (e: any) { if (e.code !== 'ER_DUP_COLUMN_NAME') console.error(e); }
+
+    try {
+        await pool.query('ALTER TABLE Employee ADD COLUMN standard_deductions DECIMAL(10,2) DEFAULT 0.00');
+    } catch (e: any) { if (e.code !== 'ER_DUP_COLUMN_NAME') console.error(e); }
+
     console.log("Seeding Permissions...");
     const permissionsData = [
         ['VIEW_DASHBOARD', 'Can access main dashboard'],
@@ -28,7 +42,10 @@ async function runSeed() {
         ['MANAGE_ROLES', 'Can modify user roles and permissions'],
         ['ASSIGN_DRIVER', 'Can assign delivery orders to drivers'],
         ['ADJUST_INVENTORY', 'Can modify stock counts'],
-        ['MANAGE_PATIENTS', 'Can manage patient records and profiles']
+        ['MANAGE_PATIENTS', 'Can manage patient records and profiles'],
+        ['MANAGE_FINANCE', 'Can manage operating expenses'],
+        ['MANAGE_PAYROLL', 'Can manage employee payroll and salaries'],
+        ['MANAGE_AUDIT', 'Can manage and delete system audit logs']
     ];
 
     for (const [action, desc] of permissionsData) {
