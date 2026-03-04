@@ -15,6 +15,8 @@ import FinanceTab from '@/components/dashboard/FinanceTab';
 import PosTab from '@/components/dashboard/PosTab';
 import SettingsTab from '@/components/dashboard/SettingsTab';
 import PatientsTab from '@/components/dashboard/PatientsTab';
+import AuditLogs from './admin/AuditLogs';
+import FinancialAnalytics from './admin/FinancialAnalytics';
 
 interface Permission {
     perm_id: number;
@@ -142,6 +144,8 @@ export default function Dashboard() {
                         {canViewSuppliers && <TabsTrigger value="suppliers">Suppliers</TabsTrigger>}
                         {canViewGRN && <TabsTrigger value="grn">Receive Stock (GRN)</TabsTrigger>}
                         {canViewFinance && <TabsTrigger value="finance">Finance</TabsTrigger>}
+                        {canViewFinance && <TabsTrigger value="analytics" className="text-emerald-700 bg-emerald-50 data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Analytics</TabsTrigger>}
+                        {userPerms.includes('VIEW_DASHBOARD') && <TabsTrigger value="audit">Audit Logs</TabsTrigger>}
                         {canManagePatients && <TabsTrigger value="patients">Patients</TabsTrigger>}
                     </TabsList>
 
@@ -246,6 +250,18 @@ export default function Dashboard() {
                                     />
                                 </CardContent>
                             </Card>
+                        </TabsContent>
+                    )}
+
+                    {canViewFinance && (
+                        <TabsContent value="analytics">
+                            <FinancialAnalytics />
+                        </TabsContent>
+                    )}
+
+                    {userPerms.includes('VIEW_DASHBOARD') && (
+                        <TabsContent value="audit">
+                            <AuditLogs />
                         </TabsContent>
                     )}
 

@@ -75,6 +75,30 @@ app.post('/api/pos/checkout', authenticateToken, hasPermission('VIEW_TAB_POS'), 
 app.get('/api/pos/search', authenticateToken, hasPermission('VIEW_TAB_POS'), searchPosProducts);
 app.get('/api/pos/invoice/:id', authenticateToken, hasPermission('VIEW_TAB_POS'), getInvoiceReceipt);
 
+// --- Analytics & Audit Routes ---
+import {
+    getAuditLogs, deleteAuditLog, exportAuditLogs,
+    getFinancialAnalytics,
+    addExpense, deleteExpense,
+    addPayrollEntry, updatePayrollEntry, deletePayrollEntry,
+    updateEmployeeSalary
+} from './controllers/analyticsController';
+
+app.get('/api/admin/audit-logs', authenticateToken, hasPermission('VIEW_DASHBOARD'), getAuditLogs);
+app.delete('/api/admin/audit-logs/:id', authenticateToken, hasPermission('MANAGE_AUDIT'), deleteAuditLog);
+app.get('/api/admin/audit-logs/export', authenticateToken, hasPermission('VIEW_DASHBOARD'), exportAuditLogs);
+
+app.get('/api/admin/financial-analytics', authenticateToken, hasPermission('VIEW_TAB_FINANCE'), getFinancialAnalytics);
+
+app.post('/api/admin/financial-analytics/expenses', authenticateToken, hasPermission('MANAGE_FINANCE'), addExpense);
+app.delete('/api/admin/financial-analytics/expenses/:id', authenticateToken, hasPermission('MANAGE_FINANCE'), deleteExpense);
+
+app.post('/api/admin/financial-analytics/payroll', authenticateToken, hasPermission('MANAGE_PAYROLL'), addPayrollEntry);
+app.put('/api/admin/financial-analytics/payroll/:id', authenticateToken, hasPermission('MANAGE_PAYROLL'), updatePayrollEntry);
+app.delete('/api/admin/financial-analytics/payroll/:id', authenticateToken, hasPermission('MANAGE_PAYROLL'), deletePayrollEntry);
+
+app.put('/api/admin/employees/:id/salary', authenticateToken, hasPermission('MANAGE_PAYROLL'), updateEmployeeSalary);
+
 // Basic health check
 app.get('/api/health', (req, res) => {
     res.status(200).json({ status: 'ok' });

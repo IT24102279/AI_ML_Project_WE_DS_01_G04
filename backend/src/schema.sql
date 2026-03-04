@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS Employee (
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     role_id INT NOT NULL,
+    base_salary DECIMAL(10,2) DEFAULT 0.00,
+    hourly_rate DECIMAL(10,2) DEFAULT NULL,
+    standard_deductions DECIMAL(10,2) DEFAULT 0.00,
     FOREIGN KEY (role_id) REFERENCES Role(role_id) ON DELETE RESTRICT
 );
 
@@ -144,4 +147,28 @@ CREATE TABLE IF NOT EXISTS Sale_Items (
     unit_price DECIMAL(10,2) NOT NULL,
     FOREIGN KEY (invoice_id) REFERENCES Sales_Invoices(invoice_id) ON DELETE CASCADE,
     FOREIGN KEY (batch_id) REFERENCES Inventory_Batches(batch_id) ON DELETE RESTRICT
+);
+
+-- --- Module 6: Financial Analytics & Payroll ---
+
+CREATE TABLE IF NOT EXISTS Operating_Expenses (
+    expense_id INT AUTO_INCREMENT PRIMARY KEY,
+    amount DECIMAL(10,2) NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    description TEXT,
+    recorded_date DATE NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS Payroll (
+    payroll_id INT AUTO_INCREMENT PRIMARY KEY,
+    emp_id INT NOT NULL,
+    gross_pay DECIMAL(10,2) NOT NULL,
+    deductions DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    net_salary DECIMAL(10,2) NOT NULL,
+    pay_period_start DATE NOT NULL,
+    pay_period_end DATE NOT NULL,
+    payment_date DATE NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (emp_id) REFERENCES Employee(emp_id) ON DELETE RESTRICT
 );
