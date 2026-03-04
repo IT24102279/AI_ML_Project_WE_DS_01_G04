@@ -27,14 +27,14 @@ echo "Starting Backend Server..."
 cd backend
 # Install dependencies if node_modules doesn't exist
 if [ ! -d "node_modules" ]; then
-    /tmp/fnm/fnm exec --using=20 npm install
+    npm install
 fi
 
 echo "Setting up database schema and seeding..."
-/tmp/fnm/fnm exec --using=20 npx tsx src/seed.ts
+npx tsx src/seed.ts
 
 echo "Running Backend on port 5000..."
-/tmp/fnm/fnm exec --using=20 npx tsx src/server.ts &
+npx tsx src/server.ts &
 BACKEND_PID=$!
 
 # Start Frontend
@@ -42,11 +42,11 @@ echo "Starting Frontend App..."
 cd ../frontend
 # Install dependencies if node_modules doesn't exist
 if [ ! -d "node_modules" ]; then
-    /tmp/fnm/fnm exec --using=20 npm install
+    npm install
 fi
 
 echo "Running Frontend on port 5173..."
-/tmp/fnm/fnm exec --using=20 npm run dev &
+npm run dev &
 FRONTEND_PID=$!
 
 echo "Pharmacy POS system is running."

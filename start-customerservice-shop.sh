@@ -16,15 +16,15 @@ echo -e "${GREEN}Starting Customer Service & Shop Microservices...${NC}"
 echo -e "${BLUE}▶ Checking Backend Dependencies...${NC}"
 cd $BACKEND_DIR
 if [ ! -d "node_modules" ]; then
-    /tmp/fnm/fnm exec --using=20 npm install
+    npm install
 fi
 
 echo -e "${YELLOW}▶ Setting up isolated Customer Database Schema...${NC}"
-/tmp/fnm/fnm exec --using=20 npx --yes tsx src/seed.ts || echo -e "  (Schema already exists or was seeded)"
+npx --yes tsx src/seed.ts || echo -e "  (Schema already exists or was seeded)"
 
 # Start Backend using fnm node 20
 echo -e "${BLUE}▶ Starting Node.js Backend Server on Port 4000...${NC}"
-/tmp/fnm/fnm exec --using=20 npx --yes tsx src/index.ts &
+npx --yes tsx src/index.ts &
 BACKEND_PID=$!
 cd ..
 
@@ -35,12 +35,12 @@ sleep 2
 echo -e "${BLUE}▶ Checking Frontend Dependencies...${NC}"
 cd $FRONTEND_DIR
 if [ ! -d "node_modules" ]; then
-    /tmp/fnm/fnm exec --using=20 npm install
+    npm install
 fi
 
 # Start Frontend using fnm node 20
 echo -e "${BLUE}▶ Starting React Vite Frontend Server on Port 5174...${NC}"
-/tmp/fnm/fnm exec --using=20 npm run dev &
+npm run dev &
 FRONTEND_PID=$!
 cd ..
 
