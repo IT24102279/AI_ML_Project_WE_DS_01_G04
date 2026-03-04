@@ -77,6 +77,55 @@ The backend employs `mysql2/promise` to interact with a standalone database stru
 }
 ```
 
+### 2.1. View My Appointments
+**Endpoint:** `GET /api/customers/:id/appointments`
+**Description:** Fetches a list of upcoming appointments for the specified customer ID.
+
+**Response Payload (JSON):**
+```json
+[
+  {
+    "id": 45,
+    "customer_id": 1,
+    "pharmacist_id": 1,
+    "scheduled_time": "2026-02-27T10:30:00.000Z",
+    "symptoms_note": "Persistent migraine for two days",
+    "status": "Confirmed",
+    "created_at": "2026-02-26T18:00:00.000Z"
+  }
+]
+```
+
+### 2.2. Update Appointment
+**Endpoint:** `PUT /api/appointments/:id`
+**Description:** Updates the scheduled time or symptoms note for an existing appointment.
+
+**Request Payload (JSON):**
+```json
+{
+  "scheduled_time": "2026-02-27T11:00",
+  "symptoms_note": "Migraine is getting worse"
+}
+```
+
+**Response Payload (JSON):**
+```json
+{
+  "status": "Updated"
+}
+```
+
+### 2.3. Cancel Appointment
+**Endpoint:** `DELETE /api/appointments/:id`
+**Description:** Cancels and deletes an appointment from the system.
+
+**Response Payload (JSON):**
+```json
+{
+  "status": "Deleted"
+}
+```
+
 ### 3. Opt-Out (Anonymize Data)
 **Endpoint:** `DELETE /api/customers/:id/opt-out`
 **Description:** Scrambles or purges identifiable tokens matching the `customer_id` across the isolated database.

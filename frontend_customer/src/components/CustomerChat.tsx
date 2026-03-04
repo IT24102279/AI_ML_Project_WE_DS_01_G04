@@ -68,25 +68,74 @@ export default function CustomerChat() {
         }
     };
 
-    const [bookTime, setBookTime] = useState('');
+    const [bookDate, setBookDate] = useState('');
+    const [bookTimeOnly, setBookTimeOnly] = useState('');
     const [bookNote, setBookNote] = useState('');
+    const [myAppointments, setMyAppointments] = useState<any[]>([]);
+    const [editingAppointmentId, setEditingAppointmentId] = useState<number | null>(null);
+
+    const fetchMyAppointments = async () => {
+        try {
+            const res = await fetch(`http://localhost:4000/api/customers/${customerId}/appointments`);
+            if (res.ok) setMyAppointments(await res.json());
+        } catch (e) { console.error(e); }
+    };
+
+    useEffect(() => {
+        fetchMyAppointments();
+    }, [customerId]);
+
+    const handleEditClick = (app: any) => {
+        setEditingAppointmentId(app.id);
+        const dateObj = new Date(app.scheduled_time);
+
+        // Extract YYYY-MM-DD
+        const Y = dateObj.getFullYear();
+        const M = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const D = String(dateObj.getDate()).padStart(2, '0');
+        setBookDate(`${Y}-${M}-${D}`);
+
+        // Extract HH:MM
+        const h = String(dateObj.getHours()).padStart(2, '0');
+        const m = String(dateObj.getMinutes()).padStart(2, '0');
+        setBookTimeOnly(`${h}:${m}`);
+
+        setBookNote(app.symptoms_note || '');
+    };
+
+    const handleDeleteAppointment = async (id: number) => {
+        if (!confirm('Cancel this appointment?')) return;
+        try {
+            await fetch(`http://localhost:4000/api/appointments/${id}`, { method: 'DELETE' });
+            fetchMyAppointments();
+        } catch (e) { console.error(e); }
+    };
 
     const handleBooking = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const res = await fetch('http://localhost:4000/api/appointments/book', {
-                method: 'POST',
+            const url = editingAppointmentId
+                ? `http://localhost:4000/api/appointments/${editingAppointmentId}`
+                : 'http://localhost:4000/api/appointments/book';
+
+            const method = editingAppointmentId ? 'PUT' : 'POST';
+
+            const res = await fetch(url, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     customer_id: customerId,
-                    scheduled_time: bookTime,
+                    scheduled_time: `${bookDate}T${bookTimeOnly}`,
                     symptoms_note: bookNote
                 })
             });
             if (res.ok) {
-                alert("Appointment booked successfully!");
-                setBookTime('');
+                alert(editingAppointmentId ? "Appointment updated!" : "Appointment booked successfully!");
+                setBookDate('');
+                setBookTimeOnly('');
                 setBookNote('');
+                setEditingAppointmentId(null);
+                fetchMyAppointments();
             } else {
                 alert("Failed to book appointment.");
             }
@@ -110,17 +159,37 @@ export default function CustomerChat() {
             {/* Sidebar Operations */}
             <div className="w-full md:w-1/3 flex flex-col gap-6">
                 <div className="bg-white border rounded-lg p-6 shadow-sm">
-                    <h2 className="text-xl font-bold mb-4">Book Consultation</h2>
+                    <h2 className="text-xl font-bold mb-4">{editingAppointmentId ? 'Reschedule' : 'Book'} Consultation</h2>
                     <form onSubmit={handleBooking} className="flex flex-col gap-4">
                         <div>
                             <label className="block text-sm font-medium mb-1">Date & Time</label>
-                            <input
-                                type="datetime-local"
-                                required
-                                value={bookTime}
-                                onChange={e => setBookTime(e.target.value)}
-                                className="w-full border rounded p-2"
-                            />
+                            <div className="flex gap-2">
+                                <input
+                                    type="date"
+                                    required
+                                    value={bookDate}
+                                    onChange={e => setBookDate(e.target.value)}
+                                    className="flex-1 border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                />
+                                <select
+                                    required
+                                    value={bookTimeOnly}
+                                    onChange={e => setBookTimeOnly(e.target.value)}
+                                    className="w-32 border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                >
+                                    <option value="" disabled>Time</option>
+                                    {[...Array(17)].map((_, i) => {
+                                        const hour = Math.floor(i / 2) + 9;
+                                        const minute = (i % 2) * 30;
+                                        const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                                        return (
+                                            <option key={timeStr} value={timeStr}>
+                                                {hour > 12 ? hour - 12 : hour}:{minute.toString().padStart(2, '0')} {hour >= 12 ? 'PM' : 'AM'}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Symptoms (Optional)</label>
@@ -132,10 +201,46 @@ export default function CustomerChat() {
                                 placeholder="Briefly describe your health concern..."
                             ></textarea>
                         </div>
-                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded transition-colors">
-                            Schedule Now
-                        </button>
+                        <div className="flex gap-2">
+                            <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded transition-colors">
+                                {editingAppointmentId ? 'Update Appointment' : 'Schedule Now'}
+                            </button>
+                            {editingAppointmentId && (
+                                <button type="button" onClick={() => {
+                                    setEditingAppointmentId(null);
+                                    setBookDate('');
+                                    setBookTimeOnly('');
+                                    setBookNote('');
+                                }} className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium py-2 px-4 rounded transition-colors">
+                                    Cancel
+                                </button>
+                            )}
+                        </div>
                     </form>
+                </div>
+
+                <div className="bg-white border rounded-lg p-6 shadow-sm flex flex-col gap-3">
+                    <h3 className="font-semibold text-slate-800">My Appointments</h3>
+                    {myAppointments.length === 0 ? (
+                        <p className="text-sm text-slate-500">No upcoming appointments.</p>
+                    ) : (
+                        <div className="flex flex-col gap-3 max-h-48 overflow-y-auto pr-1">
+                            {myAppointments.map(app => (
+                                <div key={app.id} className="border rounded p-3 text-sm flex justify-between items-center bg-slate-50 transition-colors">
+                                    <div className="overflow-hidden">
+                                        <div className="font-medium text-slate-800">{new Date(app.scheduled_time).toLocaleString(undefined, {
+                                            month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+                                        })}</div>
+                                        {app.symptoms_note && <div className="text-slate-500 text-xs mt-1 truncate max-w-[150px]">{app.symptoms_note}</div>}
+                                    </div>
+                                    <div className="flex gap-2 pl-2">
+                                        <button onClick={() => handleEditClick(app)} className="text-blue-600 hover:text-blue-800 font-semibold px-1">Edit</button>
+                                        <button onClick={() => handleDeleteAppointment(app.id)} className="text-red-600 hover:text-red-800 font-semibold px-1">Cancel</button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 <div className="bg-white border rounded-lg p-6 shadow-sm flex flex-col gap-2 mt-auto">

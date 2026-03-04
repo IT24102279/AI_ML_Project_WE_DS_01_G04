@@ -119,7 +119,17 @@ app.post('/api/appointments/book', async (req, res) => {
 
         let formattedTime;
         try {
-            formattedTime = new Date(scheduled_time).toISOString().slice(0, 19).replace('T', ' ');
+            const dateObj = new Date(scheduled_time);
+            if (isNaN(dateObj.getTime())) throw new Error();
+
+            // Format to YYYY-MM-DD HH:MM:SS in local time to avoid UTC shift
+            const Y = dateObj.getFullYear();
+            const M = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const D = String(dateObj.getDate()).padStart(2, '0');
+            const h = String(dateObj.getHours()).padStart(2, '0');
+            const m = String(dateObj.getMinutes()).padStart(2, '0');
+            const s = String(dateObj.getSeconds()).padStart(2, '0');
+            formattedTime = `${Y}-${M}-${D} ${h}:${m}:${s}`;
         } catch (e) {
             return res.status(400).json({ error: 'Invalid date format' });
         }
@@ -140,6 +150,55 @@ app.post('/api/appointments/book', async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });
+
+// Get My Appointments
+app.get('/api/customers/:id/appointments', async (req, res) => {
+    try {
+        const [rows] = await pool.query(`SELECT * FROM Appointments WHERE customer_id = ? ORDER BY scheduled_time ASC`, [req.params.id]);
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Update Appointment
+app.put('/api/appointments/:id', async (req, res) => {
+    try {
+        const { scheduled_time, symptoms_note } = req.body;
+        let formattedTime;
+        try {
+            const dateObj = new Date(scheduled_time);
+            if (isNaN(dateObj.getTime())) throw new Error();
+            const Y = dateObj.getFullYear();
+            const M = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const D = String(dateObj.getDate()).padStart(2, '0');
+            const h = String(dateObj.getHours()).padStart(2, '0');
+            const m = String(dateObj.getMinutes()).padStart(2, '0');
+            const s = String(dateObj.getSeconds()).padStart(2, '0');
+            formattedTime = `${Y}-${M}-${D} ${h}:${m}:${s}`;
+        } catch (e) {
+            return res.status(400).json({ error: 'Invalid date format' });
+        }
+        await pool.query(
+            `UPDATE Appointments SET scheduled_time = ?, symptoms_note = ? WHERE id = ?`,
+            [formattedTime, symptoms_note || '', req.params.id]
+        );
+        res.json({ status: "Updated" });
+    } catch (error) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Delete Appointment
+app.delete('/api/appointments/:id', async (req, res) => {
+    try {
+        await pool.query(`DELETE FROM Appointments WHERE id = ?`, [req.params.id]);
+        res.json({ status: "Deleted" });
+    } catch (error) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 
 // 3. Delete / Opt-Out
 app.delete('/api/customers/:id/opt-out', async (req, res) => {
