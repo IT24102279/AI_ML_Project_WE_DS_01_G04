@@ -274,7 +274,7 @@ export default function Dashboard() {
                     {canViewPOS && (
                         <TabsContent value="pos">
                             <div className="bg-white rounded-xl border shadow-sm p-6">
-                                <PosTab currency={settings.currency || '$'} />
+                                <PosTab currency={settings.currency || '$'} canManageSales={userPerms.includes('EDIT_PAST_SALES')} />
                             </div>
                         </TabsContent>
                     )}

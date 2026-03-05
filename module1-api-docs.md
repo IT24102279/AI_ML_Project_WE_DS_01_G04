@@ -119,3 +119,62 @@
   }
 ]
 ```
+
+## 5. Get Sales & Drafts History
+* **Endpoint URL & Method:** `GET /api/pos/history`
+* **Description:** Retrieves the latest 100 sales invoices, including both Completed sales and Drafts. Used for displaying the history tab in the Point of Sale module.
+* **Required Permission:** `VIEW_TAB_POS`
+* **Request Payload:** None
+* **Response Payload (JSON):**
+```json
+[
+  {
+    "invoice_id": 204,
+    "total_amount": "1500.50",
+    "created_at": "2024-03-05T08:30:00.000Z",
+    "payment_method": "Pending",
+    "status": "Draft",
+    "cashier_name": "John Doe"
+  }
+]
+```
+
+## 6. View Invoice Details
+* **Endpoint URL & Method:** `GET /api/pos/invoice/:id`
+* **Description:** Retrieves detailed information for a specific invoice, including all line items and their corresponding product names. Used when viewing a specific sale in the history tab or loading a Draft into the cart.
+* **Required Permission:** `VIEW_TAB_POS`
+* **Request Payload:** None (Invoice ID in URL parameter `id`)
+* **Response Payload (JSON):**
+```json
+{
+  "invoice_id": 204,
+  "total_amount": "1500.50",
+  "money_given": "0.00",
+  "received_at": "2024-03-05T08:30:00.000Z",
+  "payment_method": "Pending",
+  "status": "Draft",
+  "cashier_name": "John Doe",
+  "patient_id": null,
+  "items": [
+    {
+      "sale_item_id": 35,
+      "quantity": 2,
+      "unit_price": "750.25",
+      "product_name": "Curam 625mg",
+      "product_id": 5
+    }
+  ]
+}
+```
+
+## 7. Delete / Void Sale Invoice
+* **Endpoint URL & Method:** `DELETE /api/pos/invoice/:id`
+* **Description:** Deletes a draft entirely or voids a completed sale by restoring the deducted stock back into `Inventory_Batches` and `Products`. Logs the activity to `Audit_Logs`. Requires an explicitly assigned permission for Sales Editing.
+* **Required Permission:** `EDIT_PAST_SALES`
+* **Request Payload:** None (Invoice ID in URL parameter `id`)
+* **Response Payload (JSON):**
+```json
+{
+  "message": "Invoice deleted successfully"
+}
+```

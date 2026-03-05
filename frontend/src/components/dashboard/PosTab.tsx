@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Check, ChevronsUpDown, Trash2, Zap } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Check, ChevronsUpDown, Trash2, Zap, Save, RefreshCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
     Select,
@@ -37,6 +38,7 @@ interface CartItem {
     quantity: number;
     unit_price: number;
     frequency: string;
+    batch_id?: number | null;
 }
 
 interface AiExtractedLine {
@@ -48,7 +50,16 @@ interface AiExtractedLine {
     matched_unit_price?: number;
 }
 
-export default function PosTab({ currency = '$' }: { currency?: string }) {
+interface SaleHistory {
+    invoice_id: number;
+    total_amount: string;
+    created_at: string;
+    payment_method: string;
+    status: string;
+    cashier_name: string;
+}
+
+export default function PosTab({ currency = '$', canManageSales = false }: { currency?: string, canManageSales?: boolean }) {
     const { toast } = useToast();
     const navigate = useNavigate();
 
@@ -77,6 +88,12 @@ export default function PosTab({ currency = '$' }: { currency?: string }) {
     const [aiSearchQueries, setAiSearchQueries] = useState<Record<number, string>>({});
     const [aiSearchResults, setAiSearchResults] = useState<Record<number, ProductSearchResult[]>>({});
 
+    // -- History State --
+    const [history, setHistory] = useState<SaleHistory[]>([]);
+    const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+    const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState("sale");
+
     useEffect(() => {
         // Connect to Socket.io for Real-time AI Webhooks
         const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -101,10 +118,21 @@ export default function PosTab({ currency = '$' }: { currency?: string }) {
             setCart([{ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "" }]);
         }
 
+        loadHistory();
+
         return () => {
             socketRef.current?.disconnect();
         };
     }, []);
+
+    const loadHistory = async () => {
+        try {
+            const data = await fetchWithAuth('/pos/history');
+            setHistory(data);
+        } catch (error) {
+            console.error(error);
+        }
+    };
 
     // --- Search Logic ---
     const handleSearch = async (rowId: string, q: string) => {
@@ -164,7 +192,6 @@ export default function PosTab({ currency = '$' }: { currency?: string }) {
 
     // --- AI Autofill Verification ---
     const handleVerifyAiData = () => {
-        // Only transfer verified (mapped) items to cart
         const verifiedItems = aiLines.filter(line => line.matched_product_id !== null).map(line => ({
             id: crypto.randomUUID(),
             product_id: line.matched_product_id!,
@@ -175,7 +202,6 @@ export default function PosTab({ currency = '$' }: { currency?: string }) {
         }));
 
         if (verifiedItems.length > 0) {
-            // Remove empty unselected rows from current cart
             const currentCleanCart = cart.filter(item => item.product_id !== null);
             setCart([...currentCleanCart, ...verifiedItems]);
             toast({ title: "Autofill Complete", description: `Added ${verifiedItems.length} verified items to the cart.` });
@@ -183,7 +209,7 @@ export default function PosTab({ currency = '$' }: { currency?: string }) {
         setAiModalOpen(false);
     };
 
-    // --- Checkout Logic ---
+    // --- Checkout / Draft Logic ---
     const handleCheckout = async () => {
         const validItems = cart.filter(item => item.product_id !== null && item.quantity > 0);
         if (validItems.length === 0) {
@@ -208,12 +234,16 @@ export default function PosTab({ currency = '$' }: { currency?: string }) {
             };
 
             const res = await fetchWithAuth('/pos/checkout', { method: 'POST', body: JSON.stringify(payload) });
-
             toast({ title: "Sale Completed", description: `Change Due: ${currency}${res.change_due.toFixed(2)}` });
 
-            // Navigate to receipt
-            navigate(`/receipt/${res.invoice_id}`);
+            // Clear cart & load history
+            setCart([{ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "" }]);
+            setMoneyGiven(0);
+            setSelectedPatientId(null);
+            setDiscountPct(0);
+            loadHistory();
 
+            navigate(`/receipt/${res.invoice_id}`);
         } catch (error: any) {
             toast({ title: "Checkout Failed", description: error.message, variant: "destructive" });
         } finally {
@@ -221,197 +251,347 @@ export default function PosTab({ currency = '$' }: { currency?: string }) {
         }
     };
 
+    const handleSaveDraft = async () => {
+        const validItems = cart.filter(item => item.product_id !== null && item.quantity > 0);
+        if (validItems.length === 0) {
+            toast({ title: "Cart is empty", variant: "destructive" });
+            return;
+        }
+
+        try {
+            const payload = {
+                is_over_the_counter: !selectedPatientId,
+                patient_id: selectedPatientId,
+                prescription_id: pendingAiRxId,
+                payment_method: 'Pending',
+                total_amount: discountedTotal,
+                money_given: 0,
+                notes: 'Saved as draft',
+                items: validItems.map(item => ({
+                    product_id: item.product_id,
+                    batch_id: item.batch_id, // If assigned
+                    quantity: Number(item.quantity),
+                    unit_price: Number(item.unit_price)
+                }))
+            };
+
+            const res = await fetchWithAuth('/pos/draft', { method: 'POST', body: JSON.stringify(payload) });
+            toast({ title: "Draft Saved", description: `Draft #${res.invoice_id} saved successfully.` });
+
+            // Clear cart
+            setCart([{ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "" }]);
+            setMoneyGiven(0);
+            setSelectedPatientId(null);
+            setDiscountPct(0);
+            loadHistory();
+
+        } catch (error: any) {
+            toast({ title: "Failed to save draft", description: error.message, variant: "destructive" });
+        }
+    };
+
+    // --- History View / Actions ---
+    const viewInvoice = async (id: number) => {
+        try {
+            const data = await fetchWithAuth(`/pos/invoice/${id}`);
+            setSelectedInvoice(data);
+            setIsInvoiceModalOpen(true);
+        } catch (error: any) {
+            toast({ title: "Error", description: "Failed to load invoice details.", variant: "destructive" });
+        }
+    };
+
+    const deleteInvoice = async (id: number, loadToCartAfter: boolean = false) => {
+        if (!confirm("Are you sure you want to delete/void this invoice? This action cannot be undone and will be audited.")) return;
+        try {
+            await fetchWithAuth(`/pos/invoice/${id}`, { method: 'DELETE' });
+            toast({ title: "Success", description: "Invoice deleted/voided successfully." });
+            loadHistory();
+            setIsInvoiceModalOpen(false);
+            if (loadToCartAfter) {
+                loadDraftToCart();
+            }
+        } catch (error: any) {
+            toast({ title: "Error", description: error.message || "Failed to delete invoice.", variant: "destructive" });
+        }
+    };
+
+    const loadDraftToCart = () => {
+        if (!selectedInvoice) return;
+
+        const newCart: CartItem[] = selectedInvoice.items.map((item: any) => ({
+            id: crypto.randomUUID(),
+            product_id: item.product_id,
+            product_name: item.product_name,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            frequency: item.frequency || ''
+        }));
+
+        if (newCart.length === 0) newCart.push({ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "" });
+
+        setCart(newCart);
+        setIsInvoiceModalOpen(false);
+        setActiveTab("sale");
+        toast({ title: "Draft Loaded", description: "Cart updated with draft items." });
+    };
+
     return (
-        <div className="flex flex-col md:flex-row gap-6 pb-20">
-            {/* Left Panel: Bill Summary */}
-            <div className="md:w-1/3 bg-slate-50 p-6 rounded-xl border border-slate-200 flex flex-col shadow-sm">
+        <div className="pb-20 space-y-6">
+            <div className="flex justify-between items-center">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                    <TabsList className="mb-4">
+                        <TabsTrigger value="sale">Current Sale</TabsTrigger>
+                        <TabsTrigger value="history">Sales & Drafts History</TabsTrigger>
+                    </TabsList>
 
-                <PatientSelector
-                    onPatientSelect={(id, pct) => {
-                        setSelectedPatientId(id);
-                        setDiscountPct(pct);
-                    }}
-                />
+                    <TabsContent value="sale">
+                        <div className="flex flex-col md:flex-row gap-6">
+                            {/* Left Panel: Bill Summary */}
+                            <div className="md:w-1/3 bg-slate-50 p-6 rounded-xl border border-slate-200 flex flex-col shadow-sm">
+                                <PatientSelector
+                                    onPatientSelect={(id, pct) => {
+                                        setSelectedPatientId(id);
+                                        setDiscountPct(pct);
+                                    }}
+                                />
 
-                <h2 className="text-2xl font-bold mb-6 text-slate-800 border-t pt-4">Current Sale</h2>
+                                <h2 className="text-2xl font-bold mb-6 text-slate-800 border-t pt-4">Current Sale</h2>
 
-                <div className="flex-1 overflow-y-auto mb-6">
-                    {cart.filter(item => item.product_id !== null).map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center py-3 border-b border-slate-200 last:border-0">
-                            <div>
-                                <p className="font-semibold text-slate-800">{item.product_name}</p>
-                                <p className="text-sm text-slate-500">{item.quantity} x {currency}{Number(item.unit_price || 0).toFixed(2)}</p>
-                            </div>
-                            <p className="font-bold text-slate-900">{currency}{(Number(item.quantity || 0) * Number(item.unit_price || 0)).toFixed(2)}</p>
-                        </div>
-                    ))}
-                    {cart.filter(item => item.product_id !== null).length === 0 && (
-                        <div className="text-center py-10 text-slate-400">Cart is empty.</div>
-                    )}
-                </div>
-
-                <div className="border-t border-slate-300 pt-4 space-y-3">
-                    <div className="flex justify-between items-center text-sm text-slate-500">
-                        <span>Cart Subtotal:</span>
-                        <span>{currency}{cartSubtotal.toFixed(2)}</span>
-                    </div>
-
-                    {discountPct > 0 && (
-                        <div className="flex justify-between items-center text-sm text-green-600 font-medium">
-                            <span>Patient Discount ({discountPct}%):</span>
-                            <span>-{currency}{discountAmount.toFixed(2)}</span>
-                        </div>
-                    )}
-
-                    <div className="flex justify-between items-center text-lg font-bold border-t pt-2">
-                        <span>Total:</span>
-                        <span className="text-2xl text-blue-700">{currency}{discountedTotal.toFixed(2)}</span>
-                    </div>
-
-                    <div className="space-y-1 mt-4">
-                        <Label>Money Given</Label>
-                        <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={moneyGiven || ''}
-                            onChange={(e) => setMoneyGiven(e.target.value ? Number(e.target.value) : 0)}
-                            className="text-lg font-semibold"
-                        />
-                    </div>
-
-                    <div className="flex justify-between items-center text-sm">
-                        <span className="text-slate-600">Balance Due:</span>
-                        <span className="font-medium text-amber-600">{currency}{balanceDue.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                        <span className="text-slate-600">Change:</span>
-                        <span className="font-medium text-green-600">{currency}{changeDue.toFixed(2)}</span>
-                    </div>
-
-                    <Button
-                        size="lg"
-                        className="w-full mt-4 text-lg font-bold py-6"
-                        disabled={isCheckingOut || discountedTotal === 0 || aiModalOpen}
-                        onClick={handleCheckout}
-                    >
-                        {isCheckingOut ? "Processing..." : "Confirm Checkout"}
-                    </Button>
-                </div>
-            </div>
-
-            {/* Right Panel: Manual Entry Grid */}
-            <div className="md:w-2/3 space-y-4">
-                <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-bold">Items</h2>
-                    {aiLines.length > 0 && !aiModalOpen && (
-                        <Button variant="outline" className="border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100" onClick={() => setAiModalOpen(true)}>
-                            <Zap className="h-4 w-4 mr-2" /> Review Pending AI Data
-                        </Button>
-                    )}
-                </div>
-
-                <div className="border rounded-md bg-white shadow-sm overflow-hidden">
-                    <Table>
-                        <TableHeader className="bg-slate-50">
-                            <TableRow>
-                                <TableHead className="w-[300px]">Search Product</TableHead>
-                                <TableHead className="w-[120px]">Frequency</TableHead>
-                                <TableHead className="w-[100px]">Qty</TableHead>
-                                <TableHead className="w-[120px]">Unit Price</TableHead>
-                                <TableHead className="w-[120px] text-right">Subtotal</TableHead>
-                                <TableHead className="w-[60px]"></TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {cart.map((row) => (
-                                <TableRow key={row.id}>
-                                    <TableCell>
-                                        {!row.product_id ? (
-                                            <Popover open={openProductBox === row.id} onOpenChange={(isOpen) => setOpenProductBox(isOpen ? row.id : null)}>
-                                                <PopoverTrigger asChild>
-                                                    <Button variant="outline" className="w-full justify-start text-left text-muted-foreground font-normal" role="combobox" aria-expanded={openProductBox === row.id}>
-                                                        Scan or type...
-                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="p-0 w-[400px]" side="bottom" align="start">
-                                                    <Command shouldFilter={false}>
-                                                        <CommandInput
-                                                            placeholder="Type to search products..."
-                                                            value={searchQueries[row.id] || ""}
-                                                            onValueChange={(q: string) => handleSearch(row.id, q)}
-                                                        />
-                                                        <CommandList>
-                                                            <CommandEmpty>No results found.</CommandEmpty>
-                                                            <CommandGroup>
-                                                                {searchResults[row.id]?.map((prod) => (
-                                                                    <CommandItem
-                                                                        key={prod.product_id}
-                                                                        value={`${prod.product_id}`}
-                                                                        onSelect={() => {
-                                                                            selectProduct(row.id, prod);
-                                                                            setOpenProductBox(null);
-                                                                        }}
-                                                                    >
-                                                                        <Check className={cn("mr-2 h-4 w-4", row.product_id === prod.product_id ? "opacity-100" : "opacity-0")} />
-                                                                        <div className="flex flex-col">
-                                                                            <span>{prod.name} ({prod.measure_unit})</span>
-                                                                            <span className="text-xs text-slate-500">Stock: {prod.total_stock} | Price: {currency}{prod.selling_price}</span>
-                                                                        </div>
-                                                                    </CommandItem>
-                                                                ))}
-                                                            </CommandGroup>
-                                                        </CommandList>
-                                                    </Command>
-                                                </PopoverContent>
-                                            </Popover>
-                                        ) : (
-                                            <div className="flex items-center justify-between">
-                                                <span className="font-medium text-sm text-slate-700">{row.product_name}</span>
-                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-300 hover:text-red-600" onClick={() => { updateCartRow(row.id, "product_id", null); updateCartRow(row.id, "product_name", ""); }}>✕</Button>
+                                <div className="flex-1 overflow-y-auto mb-6">
+                                    {cart.filter(item => item.product_id !== null).map((item, idx) => (
+                                        <div key={idx} className="flex justify-between items-center py-3 border-b border-slate-200 last:border-0">
+                                            <div>
+                                                <p className="font-semibold text-slate-800">{item.product_name}</p>
+                                                <p className="text-sm text-slate-500">{item.quantity} x {currency}{Number(item.unit_price || 0).toFixed(2)}</p>
                                             </div>
-                                        )}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Select value={row.frequency} onValueChange={v => updateCartRow(row.id, "frequency", v)}>
-                                            <SelectTrigger className="w-[110px] bg-white">
-                                                <SelectValue placeholder="Freq..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="OD">OD (1/day)</SelectItem>
-                                                <SelectItem value="BID">BID (2/day)</SelectItem>
-                                                <SelectItem value="TID">TID (3/day)</SelectItem>
-                                                <SelectItem value="QID">QID (4/day)</SelectItem>
-                                                <SelectItem value="Q4H">Q4H (Every 4hrs)</SelectItem>
-                                                <SelectItem value="Q8H">Q8H (Every 8hrs)</SelectItem>
-                                                <SelectItem value="STAT">STAT (Now)</SelectItem>
-                                                <SelectItem value="PRN">PRN (As needed)</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Input type="number" min="1" value={row.quantity || ''} onChange={e => updateCartRow(row.id, "quantity", Number(e.target.value))} />
-                                    </TableCell>
-                                    <TableCell>
-                                        <Input type="number" min="0" step="0.01" value={row.unit_price || ''} onChange={e => updateCartRow(row.id, "unit_price", Number(e.target.value))} />
-                                    </TableCell>
-                                    <TableCell className="text-right font-medium text-slate-700">
-                                        {currency}{(Number(row.quantity || 0) * Number(row.unit_price || 0)).toFixed(2)}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeCartRow(row.id)}>
-                                            <Trash2 className="h-4 w-4" />
+                                            <p className="font-bold text-slate-900">{currency}{(Number(item.quantity || 0) * Number(item.unit_price || 0)).toFixed(2)}</p>
+                                        </div>
+                                    ))}
+                                    {cart.filter(item => item.product_id !== null).length === 0 && (
+                                        <div className="text-center py-10 text-slate-400">Cart is empty.</div>
+                                    )}
+                                </div>
+
+                                <div className="border-t border-slate-300 pt-4 space-y-3">
+                                    <div className="flex justify-between items-center text-sm text-slate-500">
+                                        <span>Cart Subtotal:</span>
+                                        <span>{currency}{cartSubtotal.toFixed(2)}</span>
+                                    </div>
+
+                                    {discountPct > 0 && (
+                                        <div className="flex justify-between items-center text-sm text-green-600 font-medium">
+                                            <span>Patient Discount ({discountPct}%):</span>
+                                            <span>-{currency}{discountAmount.toFixed(2)}</span>
+                                        </div>
+                                    )}
+
+                                    <div className="flex justify-between items-center text-lg font-bold border-t pt-2">
+                                        <span>Total:</span>
+                                        <span className="text-2xl text-blue-700">{currency}{discountedTotal.toFixed(2)}</span>
+                                    </div>
+
+                                    <div className="space-y-1 mt-4">
+                                        <Label>Money Given</Label>
+                                        <Input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={moneyGiven || ''}
+                                            onChange={(e) => setMoneyGiven(e.target.value ? Number(e.target.value) : 0)}
+                                            className="text-lg font-semibold"
+                                        />
+                                    </div>
+
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-600">Balance Due:</span>
+                                        <span className="font-medium text-amber-600">{currency}{balanceDue.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-600">Change:</span>
+                                        <span className="font-medium text-green-600">{currency}{changeDue.toFixed(2)}</span>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 mt-4">
+                                        <Button variant="outline" className="w-full text-slate-600 border-slate-300" onClick={handleSaveDraft}>
+                                            <Save className="h-4 w-4 mr-2" /> Save Draft
                                         </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
-                <Button onClick={addCartRow} variant="outline" className="w-full border-dashed border-slate-300 text-slate-500 hover:text-slate-700">
-                    + Add Empty Row
-                </Button>
+                                        <Button
+                                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                                            disabled={isCheckingOut || discountedTotal === 0 || aiModalOpen}
+                                            onClick={handleCheckout}
+                                        >
+                                            {isCheckingOut ? "Wait..." : "Checkout"}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Right Panel: Manual Entry Grid */}
+                            <div className="md:w-2/3 space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <h2 className="text-2xl font-bold">Items</h2>
+                                    {aiLines.length > 0 && !aiModalOpen && (
+                                        <Button variant="outline" className="border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100" onClick={() => setAiModalOpen(true)}>
+                                            <Zap className="h-4 w-4 mr-2" /> Review Pending AI Data
+                                        </Button>
+                                    )}
+                                </div>
+
+                                <div className="border rounded-md bg-white shadow-sm overflow-hidden">
+                                    <Table>
+                                        <TableHeader className="bg-slate-50">
+                                            <TableRow>
+                                                <TableHead className="w-[300px]">Search Product</TableHead>
+                                                <TableHead className="w-[120px]">Frequency</TableHead>
+                                                <TableHead className="w-[100px]">Qty</TableHead>
+                                                <TableHead className="w-[120px]">Unit Price</TableHead>
+                                                <TableHead className="w-[120px] text-right">Subtotal</TableHead>
+                                                <TableHead className="w-[60px]"></TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {cart.map((row) => (
+                                                <TableRow key={row.id}>
+                                                    <TableCell>
+                                                        {!row.product_id ? (
+                                                            <Popover open={openProductBox === row.id} onOpenChange={(isOpen) => setOpenProductBox(isOpen ? row.id : null)}>
+                                                                <PopoverTrigger asChild>
+                                                                    <Button variant="outline" className="w-full justify-start text-left text-muted-foreground font-normal" role="combobox" aria-expanded={openProductBox === row.id}>
+                                                                        Scan or type...
+                                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                                    </Button>
+                                                                </PopoverTrigger>
+                                                                <PopoverContent className="p-0 w-[400px]" side="bottom" align="start">
+                                                                    <Command shouldFilter={false}>
+                                                                        <CommandInput
+                                                                            placeholder="Type to search products..."
+                                                                            value={searchQueries[row.id] || ""}
+                                                                            onValueChange={(q: string) => handleSearch(row.id, q)}
+                                                                        />
+                                                                        <CommandList>
+                                                                            <CommandEmpty>No results found.</CommandEmpty>
+                                                                            <CommandGroup>
+                                                                                {searchResults[row.id]?.map((prod) => (
+                                                                                    <CommandItem
+                                                                                        key={prod.product_id}
+                                                                                        value={`${prod.product_id}`}
+                                                                                        onSelect={() => {
+                                                                                            selectProduct(row.id, prod);
+                                                                                            setOpenProductBox(null);
+                                                                                        }}
+                                                                                    >
+                                                                                        <Check className={cn("mr-2 h-4 w-4", row.product_id === prod.product_id ? "opacity-100" : "opacity-0")} />
+                                                                                        <div className="flex flex-col">
+                                                                                            <span>{prod.name} ({prod.measure_unit})</span>
+                                                                                            <span className="text-xs text-slate-500">Stock: {prod.total_stock} | Price: {currency}{prod.selling_price}</span>
+                                                                                        </div>
+                                                                                    </CommandItem>
+                                                                                ))}
+                                                                            </CommandGroup>
+                                                                        </CommandList>
+                                                                    </Command>
+                                                                </PopoverContent>
+                                                            </Popover>
+                                                        ) : (
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="font-medium text-sm text-slate-700">{row.product_name}</span>
+                                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-300 hover:text-red-600" onClick={() => { updateCartRow(row.id, "product_id", null); updateCartRow(row.id, "product_name", ""); }}>✕</Button>
+                                                            </div>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Select value={row.frequency} onValueChange={v => updateCartRow(row.id, "frequency", v)}>
+                                                            <SelectTrigger className="w-[110px] bg-white">
+                                                                <SelectValue placeholder="Freq..." />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="OD">OD (1/day)</SelectItem>
+                                                                <SelectItem value="BID">BID (2/day)</SelectItem>
+                                                                <SelectItem value="TID">TID (3/day)</SelectItem>
+                                                                <SelectItem value="QID">QID (4/day)</SelectItem>
+                                                                <SelectItem value="Q4H">Q4H (Every 4hrs)</SelectItem>
+                                                                <SelectItem value="Q8H">Q8H (Every 8hrs)</SelectItem>
+                                                                <SelectItem value="STAT">STAT (Now)</SelectItem>
+                                                                <SelectItem value="PRN">PRN (As needed)</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Input type="number" min="1" value={row.quantity || ''} onChange={e => updateCartRow(row.id, "quantity", Number(e.target.value))} />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Input type="number" min="0" step="0.01" value={row.unit_price || ''} onChange={e => updateCartRow(row.id, "unit_price", Number(e.target.value))} />
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-medium text-slate-700">
+                                                        {currency}{(Number(row.quantity || 0) * Number(row.unit_price || 0)).toFixed(2)}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeCartRow(row.id)}>
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                                <Button onClick={addCartRow} variant="outline" className="w-full border-dashed border-slate-300 text-slate-500 hover:text-slate-700">
+                                    + Add Empty Row
+                                </Button>
+                            </div>
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent value="history">
+                        <div className="bg-white rounded-xl shadow-sm border p-4 space-y-4">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-2xl font-bold">Sales & Drafts History</h2>
+                                <Button variant="outline" onClick={loadHistory}><RefreshCcw className="h-4 w-4 mr-2" /> Refresh</Button>
+                            </div>
+
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Invoice ID</TableHead>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Amount</TableHead>
+                                        <TableHead>Cashier</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {history.map((h) => (
+                                        <TableRow key={h.invoice_id} className={h.status === 'Draft' ? "bg-amber-50" : ""}>
+                                            <TableCell className="font-medium">INV-{h.invoice_id}</TableCell>
+                                            <TableCell>{new Date(h.created_at).toLocaleString()}</TableCell>
+                                            <TableCell>{currency}{Number(h.total_amount).toFixed(2)}</TableCell>
+                                            <TableCell>{h.cashier_name}</TableCell>
+                                            <TableCell>
+                                                <span className={cn(
+                                                    "px-2 py-1 text-xs rounded-full font-medium",
+                                                    h.status === 'Completed' ? "bg-green-100 text-green-800" :
+                                                        h.status === 'Draft' ? "bg-amber-100 text-amber-800" :
+                                                            "bg-slate-100 text-slate-800"
+                                                )}>
+                                                    {h.status}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-right space-x-2">
+                                                <Button size="sm" variant="outline" onClick={() => viewInvoice(h.invoice_id)}>View Details</Button>
+                                                {canManageSales && (
+                                                    <Button size="sm" variant="destructive" onClick={() => deleteInvoice(h.invoice_id)}>Delete</Button>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {history.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-6 text-slate-500">No records found.</TableCell></TableRow>}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </TabsContent>
+                </Tabs>
             </div>
 
             {/* AI Verification Modal */}
@@ -455,7 +635,7 @@ export default function PosTab({ currency = '$' }: { currency?: string }) {
                                                         <CommandInput
                                                             placeholder="Search to map product..."
                                                             value={aiSearchQueries[idx] || line.medicine_name_raw}
-                                                            onValueChange={(q) => handleAiSearch(idx, q)}
+                                                            onValueChange={(q: string) => handleAiSearch(idx, q)}
                                                         />
                                                         <CommandList>
                                                             <CommandEmpty>No matches found.</CommandEmpty>
@@ -488,6 +668,59 @@ export default function PosTab({ currency = '$' }: { currency?: string }) {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setAiModalOpen(false)}>Hold in Background</Button>
                         <Button className="bg-purple-600 hover:bg-purple-700" onClick={handleVerifyAiData}>Transfer to Cart</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Invoice Details Dialog */}
+            <Dialog open={isInvoiceModalOpen} onOpenChange={setIsInvoiceModalOpen}>
+                <DialogContent className="max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>Invoice Details {selectedInvoice ? `(INV-${selectedInvoice.invoice_id})` : ''}</DialogTitle>
+                    </DialogHeader>
+                    {selectedInvoice && (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4 text-sm bg-slate-50 p-4 rounded-md">
+                                <div><strong>Status:</strong> {selectedInvoice.status}</div>
+                                <div><strong>Amount:</strong> {currency}{Number(selectedInvoice.total_amount).toFixed(2)}</div>
+                                <div><strong>Date:</strong> {new Date(selectedInvoice.received_at).toLocaleString()}</div>
+                                <div><strong>Cashier:</strong> {selectedInvoice.cashier_name}</div>
+                            </div>
+
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Product</TableHead>
+                                        <TableHead>Qty</TableHead>
+                                        <TableHead>Unit Price</TableHead>
+                                        <TableHead className="text-right">Total</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {selectedInvoice.items?.map((item: any) => (
+                                        <TableRow key={item.sale_item_id}>
+                                            <TableCell>{item.product_name}</TableCell>
+                                            <TableCell>{item.quantity}</TableCell>
+                                            <TableCell>{currency}{Number(item.unit_price).toFixed(2)}</TableCell>
+                                            <TableCell className="text-right">{currency}{(item.quantity * item.unit_price).toFixed(2)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        {selectedInvoice?.status === 'Draft' && (
+                            <Button className="bg-blue-600 hover:bg-blue-700" onClick={loadDraftToCart}>
+                                Load Draft to Cart
+                            </Button>
+                        )}
+                        {selectedInvoice?.status === 'Completed' && canManageSales && (
+                            <Button className="bg-amber-600 hover:bg-amber-700 text-white" onClick={() => deleteInvoice(selectedInvoice.invoice_id, true)}>
+                                Void & Edit Sale
+                            </Button>
+                        )}
+                        <Button variant="outline" onClick={() => setIsInvoiceModalOpen(false)}>Close</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

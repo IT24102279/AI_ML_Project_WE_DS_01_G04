@@ -223,7 +223,7 @@ export const getInvoiceReceipt = async (req: AuthRequest, res: Response) => {
 
     try {
         const [invoices] = await pool.query<RowDataPacket[]>(
-            `SELECT i.invoice_id, i.total_amount, i.money_given, i.created_at as received_at, i.payment_method, e.name as cashier_name
+            `SELECT i.invoice_id, i.total_amount, i.money_given, i.created_at as received_at, i.payment_method, i.status, e.name as cashier_name, i.patient_id
              FROM Sales_Invoices i
              JOIN Employee e ON i.cashier_id = e.emp_id
              WHERE i.invoice_id = ?`,
@@ -234,8 +234,10 @@ export const getInvoiceReceipt = async (req: AuthRequest, res: Response) => {
 
         const invoice = invoices[0];
 
+        // For completed sales, we can query Sale_Items -> Batches -> Products
+        // For drafts, we might also have Sale_Items recorded if batches were assigned.
         const [items] = await pool.query<RowDataPacket[]>(
-            `SELECT si.quantity, si.unit_price, p.name as product_name
+            `SELECT si.sale_item_id, si.quantity, si.unit_price, p.name as product_name, p.product_id
              FROM Sale_Items si
              JOIN Inventory_Batches ib ON si.batch_id = ib.batch_id
              JOIN Products p ON ib.product_id = p.product_id
@@ -249,3 +251,79 @@ export const getInvoiceReceipt = async (req: AuthRequest, res: Response) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 };
+
+export const getSalesHistory = async (req: AuthRequest, res: Response) => {
+    try {
+        const [sales] = await pool.query<RowDataPacket[]>(
+            `SELECT i.invoice_id, i.total_amount, i.created_at, i.payment_method, i.status, e.name as cashier_name
+             FROM Sales_Invoices i
+             JOIN Employee e ON i.cashier_id = e.emp_id
+             ORDER BY i.created_at DESC LIMIT 100`
+        );
+        res.status(200).json(sales);
+    } catch (err) {
+        console.error("Error fetching sales history:", err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const deleteInvoice = async (req: AuthRequest, res: Response) => {
+    const invoiceId = parseInt(req.params.id as string);
+    const connection = await pool.getConnection();
+
+    try {
+        await connection.beginTransaction();
+
+        const [invoices] = await connection.query<RowDataPacket[]>(
+            `SELECT status FROM Sales_Invoices WHERE invoice_id = ?`, [invoiceId]
+        );
+
+        if (invoices.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ error: 'Invoice not found' });
+        }
+        const invoice = invoices[0];
+
+        // Only allow reverting Complete or deleting Draft
+        if (invoice.status === 'Completed') {
+            const [items] = await connection.query<RowDataPacket[]>(
+                `SELECT batch_id, quantity FROM Sale_Items WHERE invoice_id = ?`, [invoiceId]
+            );
+
+            for (const item of items) {
+                await connection.query(
+                    `UPDATE Inventory_Batches SET current_stock_level = current_stock_level + ? WHERE batch_id = ?`,
+                    [item.quantity, item.batch_id]
+                );
+
+                const [batchParam] = await connection.query<RowDataPacket[]>(`SELECT product_id FROM Inventory_Batches WHERE batch_id = ?`, [item.batch_id]);
+                if (batchParam.length > 0) {
+                    await connection.query(
+                        `UPDATE Products SET current_stock = current_stock + ? WHERE product_id = ?`,
+                        [item.quantity, batchParam[0].product_id]
+                    );
+                }
+            }
+        }
+
+        await connection.query(`DELETE FROM Sales_Invoices WHERE invoice_id = ?`, [invoiceId]);
+
+        const emp_id = req.user?.emp_id;
+        if (emp_id) {
+            await connection.query(
+                `INSERT INTO Audit_Logs (emp_id, action_type, details) VALUES (?, ?, ?)`,
+                [emp_id, 'DELETE_SALE', `Deleted/Voided invoice ID ${invoiceId} and restored stock`]
+            );
+        }
+
+        await connection.commit();
+        res.status(200).json({ message: 'Invoice deleted successfully' });
+    } catch (error) {
+        await connection.rollback();
+        console.error(error);
+        res.status(500).json({ error: 'Internal error' });
+    } finally {
+        connection.release();
+    }
+};
+

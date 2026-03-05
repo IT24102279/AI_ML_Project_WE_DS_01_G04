@@ -45,7 +45,8 @@ async function runSeed() {
         ['MANAGE_PATIENTS', 'Can manage patient records and profiles'],
         ['MANAGE_FINANCE', 'Can manage operating expenses'],
         ['MANAGE_PAYROLL', 'Can manage employee payroll and salaries'],
-        ['MANAGE_AUDIT', 'Can manage and delete system audit logs']
+        ['MANAGE_AUDIT', 'Can manage and delete system audit logs'],
+        ['EDIT_PAST_SALES', 'Can edit and delete past sales']
     ];
 
     for (const [action, desc] of permissionsData) {
