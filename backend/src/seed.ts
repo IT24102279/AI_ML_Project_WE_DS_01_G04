@@ -15,18 +15,21 @@ async function runSeed() {
     }
 
     console.log("Ensuring Employee table has salary columns...");
-    try {
-        // Since CREATE TABLE IF NOT EXISTS doesn't update existing tables, we manually ensure columns exist here
-        await pool.query('ALTER TABLE Employee ADD COLUMN base_salary DECIMAL(10,2) DEFAULT 0.00');
-    } catch (e: any) { if (e.code !== 'ER_DUP_COLUMN_NAME') console.error(e); }
+    // Check information_schema for existing columns before altering to avoid duplicate-column errors
+    async function ensureColumn(table: string, column: string, ddl: string) {
+        const [rows] = await pool.query<RowDataPacket[]>(
+            'SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?',
+            [table, column]
+        );
+        const cnt = (rows && (rows as any)[0] && (rows as any)[0].cnt) ? Number((rows as any)[0].cnt) : 0;
+        if (cnt === 0) {
+            await pool.query(ddl);
+        }
+    }
 
-    try {
-        await pool.query('ALTER TABLE Employee ADD COLUMN hourly_rate DECIMAL(10,2) DEFAULT NULL');
-    } catch (e: any) { if (e.code !== 'ER_DUP_COLUMN_NAME') console.error(e); }
-
-    try {
-        await pool.query('ALTER TABLE Employee ADD COLUMN standard_deductions DECIMAL(10,2) DEFAULT 0.00');
-    } catch (e: any) { if (e.code !== 'ER_DUP_COLUMN_NAME') console.error(e); }
+    await ensureColumn('Employee', 'base_salary', 'ALTER TABLE Employee ADD COLUMN base_salary DECIMAL(10,2) DEFAULT 0.00');
+    await ensureColumn('Employee', 'hourly_rate', 'ALTER TABLE Employee ADD COLUMN hourly_rate DECIMAL(10,2) DEFAULT NULL');
+    await ensureColumn('Employee', 'standard_deductions', 'ALTER TABLE Employee ADD COLUMN standard_deductions DECIMAL(10,2) DEFAULT 0.00');
 
     console.log("Seeding Permissions...");
     const permissionsData = [
