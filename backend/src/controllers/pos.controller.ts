@@ -71,8 +71,8 @@ export const saveDraftSale = async (req: AuthRequest, res: Response) => {
             for (const item of items) {
                 if (item.batch_id) {
                     await connection.query(
-                        `INSERT INTO Sale_Items (invoice_id, batch_id, quantity, unit_price) VALUES (?, ?, ?, ?)`,
-                        [invoiceId, item.batch_id, item.quantity, item.unit_price]
+                        `INSERT INTO Sale_Items (invoice_id, batch_id, quantity, unit_price, item_type, frequency) VALUES (?, ?, ?, ?, ?, ?)`,
+                        [invoiceId, item.batch_id, item.quantity, item.unit_price, item.type || 'otc', item.frequency || '']
                     );
                 }
             }
@@ -100,11 +100,41 @@ export const confirmCheckout = async (req: AuthRequest, res: Response) => {
     try {
         await connection.beginTransaction();
 
+        let currentRxId = prescription_id || null;
+        const rxItems = items.filter((i: any) => i.type === 'rx');
+
+        if (rxItems.length > 0 && patient_id && !currentRxId) {
+            const [rxRes] = await connection.query<ResultSetHeader>(
+                `INSERT INTO Prescriptions (patient_id, status) VALUES (?, 'Verified')`,
+                [patient_id]
+            );
+            currentRxId = rxRes.insertId;
+
+            for (const item of rxItems) {
+                // Determine name if possible, or leave as generic
+                await connection.query(
+                    `INSERT INTO Prescription_lines (prescription_id, medicine_name_raw, frequency, total_amount, matched_product_id) 
+                     VALUES (?, (SELECT name FROM Products WHERE product_id = ? LIMIT 1), ?, ?, ?)`,
+                    [currentRxId, item.product_id, item.frequency || '', item.quantity, item.product_id]
+                );
+            }
+        } else if (currentRxId && patient_id) {
+            await connection.query(
+                `UPDATE Prescriptions SET status = 'Verified', patient_id = COALESCE(patient_id, ?) WHERE prescription_id = ?`,
+                [patient_id, currentRxId]
+            );
+        } else if (currentRxId) {
+            await connection.query(
+                `UPDATE Prescriptions SET status = 'Verified' WHERE prescription_id = ?`,
+                [currentRxId]
+            );
+        }
+
         // 1. Create Completed Invoice
         const [invResult] = await connection.query<ResultSetHeader>(
             `INSERT INTO Sales_Invoices (is_over_the_counter, patient_id, cashier_id, prescription_id, payment_method, total_amount, money_given, status, notes)
              VALUES (?, ?, ?, ?, ?, ?, ?, 'Completed', ?)`,
-            [is_over_the_counter ?? true, patient_id || null, empId, prescription_id || null, payment_method || 'Cash', total_amount, money_given, notes || null]
+            [is_over_the_counter ?? true, patient_id || null, empId, currentRxId, payment_method || 'Cash', total_amount, money_given, notes || null]
         );
         const invoiceId = invResult.insertId;
 
@@ -138,8 +168,8 @@ export const confirmCheckout = async (req: AuthRequest, res: Response) => {
 
                 // Record Sale Item
                 await connection.query(
-                    `INSERT INTO Sale_Items (invoice_id, batch_id, quantity, unit_price) VALUES (?, ?, ?, ?)`,
-                    [invoiceId, batch.batch_id, deduction, sellingPrice]
+                    `INSERT INTO Sale_Items (invoice_id, batch_id, quantity, unit_price, item_type, frequency) VALUES (?, ?, ?, ?, ?, ?)`,
+                    [invoiceId, batch.batch_id, deduction, sellingPrice, item.type || 'otc', item.frequency || '']
                 );
 
                 reqQty -= deduction;
@@ -153,14 +183,6 @@ export const confirmCheckout = async (req: AuthRequest, res: Response) => {
             await connection.query(
                 `UPDATE Products SET current_stock = current_stock - ? WHERE product_id = ?`,
                 [item.quantity, productId]
-            );
-        }
-
-        // If a prescription was linked, mark it as verified/completed if needed
-        if (prescription_id) {
-            await connection.query(
-                `UPDATE Prescriptions SET status = 'Verified' WHERE prescription_id = ?`,
-                [prescription_id]
             );
         }
 
@@ -237,7 +259,7 @@ export const getInvoiceReceipt = async (req: AuthRequest, res: Response) => {
         // For completed sales, we can query Sale_Items -> Batches -> Products
         // For drafts, we might also have Sale_Items recorded if batches were assigned.
         const [items] = await pool.query<RowDataPacket[]>(
-            `SELECT si.sale_item_id, si.quantity, si.unit_price, p.name as product_name, p.product_id
+            `SELECT si.sale_item_id, si.quantity, si.unit_price, si.item_type, si.frequency, p.name as product_name, p.product_id
              FROM Sale_Items si
              JOIN Inventory_Batches ib ON si.batch_id = ib.batch_id
              JOIN Products p ON ib.product_id = p.product_id

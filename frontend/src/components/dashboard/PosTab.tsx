@@ -9,7 +9,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, ChevronsUpDown, Trash2, Zap, Save, RefreshCcw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Check, ChevronsUpDown, Trash2, Zap, Save, RefreshCcw, FileText, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
     Select,
@@ -39,6 +40,7 @@ interface CartItem {
     unit_price: number;
     frequency: string;
     batch_id?: number | null;
+    type: 'rx' | 'otc';
 }
 
 interface AiExtractedLine {
@@ -113,9 +115,8 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
             });
         });
 
-        // Add 1 default empty row to start
         if (cart.length === 0) {
-            setCart([{ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "" }]);
+            setCart([{ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "", type: "otc" }]);
         }
 
         loadHistory();
@@ -162,8 +163,8 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
         setCart(cart.filter(item => item.id !== id));
     };
 
-    const addCartRow = () => {
-        setCart([...cart, { id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "" }]);
+    const addCartRow = (type: 'rx' | 'otc') => {
+        setCart([...cart, { id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "", type }]);
     };
 
     const selectProduct = (rowId: string, prod: ProductSearchResult) => {
@@ -198,7 +199,8 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
             product_name: line.matched_product_name || line.medicine_name_raw,
             quantity: line.total_amount || 1,
             unit_price: line.matched_unit_price || 0,
-            frequency: line.frequency || ''
+            frequency: line.frequency || '',
+            type: 'rx' as const
         }));
 
         if (verifiedItems.length > 0) {
@@ -229,7 +231,9 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
                 items: validItems.map(item => ({
                     product_id: item.product_id,
                     quantity: Number(item.quantity),
-                    unit_price: Number(item.unit_price)
+                    unit_price: Number(item.unit_price),
+                    type: item.type,
+                    frequency: item.frequency
                 }))
             };
 
@@ -237,7 +241,7 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
             toast({ title: "Sale Completed", description: `Change Due: ${currency}${res.change_due.toFixed(2)}` });
 
             // Clear cart & load history
-            setCart([{ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "" }]);
+            setCart([{ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "", type: "otc" }]);
             setMoneyGiven(0);
             setSelectedPatientId(null);
             setDiscountPct(0);
@@ -271,7 +275,9 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
                     product_id: item.product_id,
                     batch_id: item.batch_id, // If assigned
                     quantity: Number(item.quantity),
-                    unit_price: Number(item.unit_price)
+                    unit_price: Number(item.unit_price),
+                    type: item.type,
+                    frequency: item.frequency
                 }))
             };
 
@@ -279,7 +285,7 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
             toast({ title: "Draft Saved", description: `Draft #${res.invoice_id} saved successfully.` });
 
             // Clear cart
-            setCart([{ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "" }]);
+            setCart([{ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "", type: "otc" }]);
             setMoneyGiven(0);
             setSelectedPatientId(null);
             setDiscountPct(0);
@@ -325,10 +331,11 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
             product_name: item.product_name,
             quantity: item.quantity,
             unit_price: item.unit_price,
-            frequency: item.frequency || ''
+            frequency: item.frequency || '',
+            type: item.type || 'otc'
         }));
 
-        if (newCart.length === 0) newCart.push({ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "" });
+        if (newCart.length === 0) newCart.push({ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "", type: "otc" });
 
         setCart(newCart);
         setIsInvoiceModalOpen(false);
@@ -428,117 +435,227 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
                             </div>
 
                             {/* Right Panel: Manual Entry Grid */}
-                            <div className="md:w-2/3 space-y-4">
-                                <div className="flex justify-between items-center">
-                                    <h2 className="text-2xl font-bold">Items</h2>
-                                    {aiLines.length > 0 && !aiModalOpen && (
-                                        <Button variant="outline" className="border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100" onClick={() => setAiModalOpen(true)}>
-                                            <Zap className="h-4 w-4 mr-2" /> Review Pending AI Data
-                                        </Button>
-                                    )}
+                            <div className="md:w-2/3 space-y-6">
+                                {/* Prescription Section */}
+                                <div className="space-y-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                                    <div className="flex justify-between items-center">
+                                        <h2 className="text-xl font-bold text-indigo-900">Prescription Items</h2>
+                                        {aiLines.length > 0 && !aiModalOpen && (
+                                            <Button variant="outline" className="border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100" onClick={() => setAiModalOpen(true)}>
+                                                <Zap className="h-4 w-4 mr-2" /> Review Pending AI Data
+                                            </Button>
+                                        )}
+                                    </div>
+                                    <div className="border rounded-md bg-white shadow-sm overflow-hidden">
+                                        <Table>
+                                            <TableHeader className="bg-slate-50">
+                                                <TableRow>
+                                                    <TableHead className="w-[300px]">Search Product</TableHead>
+                                                    <TableHead className="w-[120px]">Frequency</TableHead>
+                                                    <TableHead className="w-[100px]">Qty</TableHead>
+                                                    <TableHead className="w-[120px]">Unit Price</TableHead>
+                                                    <TableHead className="w-[120px] text-right">Subtotal</TableHead>
+                                                    <TableHead className="w-[60px]"></TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {cart.filter(r => r.type === "rx").map((row) => (
+                                                    <TableRow key={row.id}>
+                                                        <TableCell>
+                                                            {!row.product_id ? (
+                                                                <Popover open={openProductBox === row.id} onOpenChange={(isOpen) => setOpenProductBox(isOpen ? row.id : null)}>
+                                                                    <PopoverTrigger asChild>
+                                                                        <Button variant="outline" className="w-full justify-start text-left text-muted-foreground font-normal" role="combobox" aria-expanded={openProductBox === row.id}>
+                                                                            Scan or type...
+                                                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                                        </Button>
+                                                                    </PopoverTrigger>
+                                                                    <PopoverContent className="p-0 w-[400px]" side="bottom" align="start">
+                                                                        <Command shouldFilter={false}>
+                                                                            <CommandInput
+                                                                                placeholder="Type to search products..."
+                                                                                value={searchQueries[row.id] || ""}
+                                                                                onValueChange={(q: string) => handleSearch(row.id, q)}
+                                                                            />
+                                                                            <CommandList>
+                                                                                <CommandEmpty>No results found.</CommandEmpty>
+                                                                                <CommandGroup>
+                                                                                    {searchResults[row.id]?.map((prod) => (
+                                                                                        <CommandItem
+                                                                                            key={prod.product_id}
+                                                                                            value={`${prod.product_id}`}
+                                                                                            onSelect={() => {
+                                                                                                selectProduct(row.id, prod);
+                                                                                                setOpenProductBox(null);
+                                                                                            }}
+                                                                                        >
+                                                                                            <Check className={cn("mr-2 h-4 w-4", row.product_id === prod.product_id ? "opacity-100" : "opacity-0")} />
+                                                                                            <div className="flex flex-col">
+                                                                                                <span>{prod.name} ({prod.measure_unit})</span>
+                                                                                                <span className="text-xs text-slate-500">Stock: {prod.total_stock} | Price: {currency}{prod.selling_price}</span>
+                                                                                            </div>
+                                                                                        </CommandItem>
+                                                                                    ))}
+                                                                                </CommandGroup>
+                                                                            </CommandList>
+                                                                        </Command>
+                                                                    </PopoverContent>
+                                                                </Popover>
+                                                            ) : (
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="font-medium text-sm text-slate-700">{row.product_name}</span>
+                                                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-300 hover:text-red-600" onClick={() => { updateCartRow(row.id, "product_id", null); updateCartRow(row.id, "product_name", ""); }}>✕</Button>
+                                                                </div>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Select value={row.frequency} onValueChange={v => updateCartRow(row.id, "frequency", v)}>
+                                                                <SelectTrigger className="w-[110px] bg-white">
+                                                                    <SelectValue placeholder="Freq..." />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="OD">OD (1/day)</SelectItem>
+                                                                    <SelectItem value="BID">BID (2/day)</SelectItem>
+                                                                    <SelectItem value="TID">TID (3/day)</SelectItem>
+                                                                    <SelectItem value="QID">QID (4/day)</SelectItem>
+                                                                    <SelectItem value="Q4H">Q4H (Every 4hrs)</SelectItem>
+                                                                    <SelectItem value="Q8H">Q8H (Every 8hrs)</SelectItem>
+                                                                    <SelectItem value="STAT">STAT (Now)</SelectItem>
+                                                                    <SelectItem value="PRN">PRN (As needed)</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Input type="number" min="1" value={row.quantity || ''} onChange={e => updateCartRow(row.id, "quantity", Number(e.target.value))} />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Input type="number" min="0" step="0.01" value={row.unit_price || ''} onChange={e => updateCartRow(row.id, "unit_price", Number(e.target.value))} />
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-medium text-slate-700">
+                                                            {currency}{(Number(row.quantity || 0) * Number(row.unit_price || 0)).toFixed(2)}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeCartRow(row.id)}>
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                    <Button onClick={() => addCartRow('rx')} variant="outline" className="w-full border-dashed border-indigo-300 text-indigo-600 hover:text-indigo-800 bg-white">
+                                        + Add Empty Prescription Row
+                                    </Button>
                                 </div>
 
-                                <div className="border rounded-md bg-white shadow-sm overflow-hidden">
-                                    <Table>
-                                        <TableHeader className="bg-slate-50">
-                                            <TableRow>
-                                                <TableHead className="w-[300px]">Search Product</TableHead>
-                                                <TableHead className="w-[120px]">Frequency</TableHead>
-                                                <TableHead className="w-[100px]">Qty</TableHead>
-                                                <TableHead className="w-[120px]">Unit Price</TableHead>
-                                                <TableHead className="w-[120px] text-right">Subtotal</TableHead>
-                                                <TableHead className="w-[60px]"></TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {cart.map((row) => (
-                                                <TableRow key={row.id}>
-                                                    <TableCell>
-                                                        {!row.product_id ? (
-                                                            <Popover open={openProductBox === row.id} onOpenChange={(isOpen) => setOpenProductBox(isOpen ? row.id : null)}>
-                                                                <PopoverTrigger asChild>
-                                                                    <Button variant="outline" className="w-full justify-start text-left text-muted-foreground font-normal" role="combobox" aria-expanded={openProductBox === row.id}>
-                                                                        Scan or type...
-                                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                                                    </Button>
-                                                                </PopoverTrigger>
-                                                                <PopoverContent className="p-0 w-[400px]" side="bottom" align="start">
-                                                                    <Command shouldFilter={false}>
-                                                                        <CommandInput
-                                                                            placeholder="Type to search products..."
-                                                                            value={searchQueries[row.id] || ""}
-                                                                            onValueChange={(q: string) => handleSearch(row.id, q)}
-                                                                        />
-                                                                        <CommandList>
-                                                                            <CommandEmpty>No results found.</CommandEmpty>
-                                                                            <CommandGroup>
-                                                                                {searchResults[row.id]?.map((prod) => (
-                                                                                    <CommandItem
-                                                                                        key={prod.product_id}
-                                                                                        value={`${prod.product_id}`}
-                                                                                        onSelect={() => {
-                                                                                            selectProduct(row.id, prod);
-                                                                                            setOpenProductBox(null);
-                                                                                        }}
-                                                                                    >
-                                                                                        <Check className={cn("mr-2 h-4 w-4", row.product_id === prod.product_id ? "opacity-100" : "opacity-0")} />
-                                                                                        <div className="flex flex-col">
-                                                                                            <span>{prod.name} ({prod.measure_unit})</span>
-                                                                                            <span className="text-xs text-slate-500">Stock: {prod.total_stock} | Price: {currency}{prod.selling_price}</span>
-                                                                                        </div>
-                                                                                    </CommandItem>
-                                                                                ))}
-                                                                            </CommandGroup>
-                                                                        </CommandList>
-                                                                    </Command>
-                                                                </PopoverContent>
-                                                            </Popover>
-                                                        ) : (
-                                                            <div className="flex items-center justify-between">
-                                                                <span className="font-medium text-sm text-slate-700">{row.product_name}</span>
-                                                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-300 hover:text-red-600" onClick={() => { updateCartRow(row.id, "product_id", null); updateCartRow(row.id, "product_name", ""); }}>✕</Button>
-                                                            </div>
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Select value={row.frequency} onValueChange={v => updateCartRow(row.id, "frequency", v)}>
-                                                            <SelectTrigger className="w-[110px] bg-white">
-                                                                <SelectValue placeholder="Freq..." />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="OD">OD (1/day)</SelectItem>
-                                                                <SelectItem value="BID">BID (2/day)</SelectItem>
-                                                                <SelectItem value="TID">TID (3/day)</SelectItem>
-                                                                <SelectItem value="QID">QID (4/day)</SelectItem>
-                                                                <SelectItem value="Q4H">Q4H (Every 4hrs)</SelectItem>
-                                                                <SelectItem value="Q8H">Q8H (Every 8hrs)</SelectItem>
-                                                                <SelectItem value="STAT">STAT (Now)</SelectItem>
-                                                                <SelectItem value="PRN">PRN (As needed)</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Input type="number" min="1" value={row.quantity || ''} onChange={e => updateCartRow(row.id, "quantity", Number(e.target.value))} />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Input type="number" min="0" step="0.01" value={row.unit_price || ''} onChange={e => updateCartRow(row.id, "unit_price", Number(e.target.value))} />
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-medium text-slate-700">
-                                                        {currency}{(Number(row.quantity || 0) * Number(row.unit_price || 0)).toFixed(2)}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeCartRow(row.id)}>
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </TableCell>
+                                {/* OTC Section */}
+                                <div className="space-y-4 p-4 rounded-xl border bg-slate-50/50">
+                                    <div className="flex justify-between items-center">
+                                        <h2 className="text-xl font-bold text-slate-800">Over The Counter (OTC) Items</h2>
+                                    </div>
+                                    <div className="border rounded-md bg-white shadow-sm overflow-hidden">
+                                        <Table>
+                                            <TableHeader className="bg-slate-50">
+                                                <TableRow>
+                                                    <TableHead className="w-[300px]">Search Product</TableHead>
+                                                    <TableHead className="w-[120px]">Frequency</TableHead>
+                                                    <TableHead className="w-[100px]">Qty</TableHead>
+                                                    <TableHead className="w-[120px]">Unit Price</TableHead>
+                                                    <TableHead className="w-[120px] text-right">Subtotal</TableHead>
+                                                    <TableHead className="w-[60px]"></TableHead>
                                                 </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {cart.filter(r => r.type === "otc").map((row) => (
+                                                    <TableRow key={row.id}>
+                                                        <TableCell>
+                                                            {!row.product_id ? (
+                                                                <Popover open={openProductBox === row.id} onOpenChange={(isOpen) => setOpenProductBox(isOpen ? row.id : null)}>
+                                                                    <PopoverTrigger asChild>
+                                                                        <Button variant="outline" className="w-full justify-start text-left text-muted-foreground font-normal" role="combobox" aria-expanded={openProductBox === row.id}>
+                                                                            Scan or type...
+                                                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                                        </Button>
+                                                                    </PopoverTrigger>
+                                                                    <PopoverContent className="p-0 w-[400px]" side="bottom" align="start">
+                                                                        <Command shouldFilter={false}>
+                                                                            <CommandInput
+                                                                                placeholder="Type to search products..."
+                                                                                value={searchQueries[row.id] || ""}
+                                                                                onValueChange={(q: string) => handleSearch(row.id, q)}
+                                                                            />
+                                                                            <CommandList>
+                                                                                <CommandEmpty>No results found.</CommandEmpty>
+                                                                                <CommandGroup>
+                                                                                    {searchResults[row.id]?.map((prod) => (
+                                                                                        <CommandItem
+                                                                                            key={prod.product_id}
+                                                                                            value={`${prod.product_id}`}
+                                                                                            onSelect={() => {
+                                                                                                selectProduct(row.id, prod);
+                                                                                                setOpenProductBox(null);
+                                                                                            }}
+                                                                                        >
+                                                                                            <Check className={cn("mr-2 h-4 w-4", row.product_id === prod.product_id ? "opacity-100" : "opacity-0")} />
+                                                                                            <div className="flex flex-col">
+                                                                                                <span>{prod.name} ({prod.measure_unit})</span>
+                                                                                                <span className="text-xs text-slate-500">Stock: {prod.total_stock} | Price: {currency}{prod.selling_price}</span>
+                                                                                            </div>
+                                                                                        </CommandItem>
+                                                                                    ))}
+                                                                                </CommandGroup>
+                                                                            </CommandList>
+                                                                        </Command>
+                                                                    </PopoverContent>
+                                                                </Popover>
+                                                            ) : (
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="font-medium text-sm text-slate-700">{row.product_name}</span>
+                                                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-300 hover:text-red-600" onClick={() => { updateCartRow(row.id, "product_id", null); updateCartRow(row.id, "product_name", ""); }}>✕</Button>
+                                                                </div>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Select value={row.frequency} onValueChange={v => updateCartRow(row.id, "frequency", v)}>
+                                                                <SelectTrigger className="w-[110px] bg-white">
+                                                                    <SelectValue placeholder="Freq..." />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="OD">OD (1/day)</SelectItem>
+                                                                    <SelectItem value="BID">BID (2/day)</SelectItem>
+                                                                    <SelectItem value="TID">TID (3/day)</SelectItem>
+                                                                    <SelectItem value="QID">QID (4/day)</SelectItem>
+                                                                    <SelectItem value="Q4H">Q4H (Every 4hrs)</SelectItem>
+                                                                    <SelectItem value="Q8H">Q8H (Every 8hrs)</SelectItem>
+                                                                    <SelectItem value="STAT">STAT (Now)</SelectItem>
+                                                                    <SelectItem value="PRN">PRN (As needed)</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Input type="number" min="1" value={row.quantity || ''} onChange={e => updateCartRow(row.id, "quantity", Number(e.target.value))} />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Input type="number" min="0" step="0.01" value={row.unit_price || ''} onChange={e => updateCartRow(row.id, "unit_price", Number(e.target.value))} />
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-medium text-slate-700">
+                                                            {currency}{(Number(row.quantity || 0) * Number(row.unit_price || 0)).toFixed(2)}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeCartRow(row.id)}>
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                    <Button onClick={() => addCartRow('otc')} variant="outline" className="w-full border-dashed border-slate-300 text-slate-500 hover:text-slate-700 bg-white">
+                                        + Add Empty OTC Row
+                                    </Button>
                                 </div>
-                                <Button onClick={addCartRow} variant="outline" className="w-full border-dashed border-slate-300 text-slate-500 hover:text-slate-700">
-                                    + Add Empty Row
-                                </Button>
                             </div>
                         </div>
                     </TabsContent>
@@ -679,34 +796,71 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
                         <DialogTitle>Invoice Details {selectedInvoice ? `(INV-${selectedInvoice.invoice_id})` : ''}</DialogTitle>
                     </DialogHeader>
                     {selectedInvoice && (
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4 text-sm bg-slate-50 p-4 rounded-md">
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-2 gap-4 text-sm bg-slate-50 p-4 rounded-md border border-slate-100 italic">
                                 <div><strong>Status:</strong> {selectedInvoice.status}</div>
-                                <div><strong>Amount:</strong> {currency}{Number(selectedInvoice.total_amount).toFixed(2)}</div>
-                                <div><strong>Date:</strong> {new Date(selectedInvoice.received_at).toLocaleString()}</div>
+                                <div><strong>Final Total:</strong> {currency}{Number(selectedInvoice.total_amount).toFixed(2)}</div>
+                                <div><strong>Transaction Date:</strong> {new Date(selectedInvoice.received_at).toLocaleString()}</div>
                                 <div><strong>Cashier:</strong> {selectedInvoice.cashier_name}</div>
                             </div>
 
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Product</TableHead>
-                                        <TableHead>Qty</TableHead>
-                                        <TableHead>Unit Price</TableHead>
-                                        <TableHead className="text-right">Total</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {selectedInvoice.items?.map((item: any) => (
-                                        <TableRow key={item.sale_item_id}>
-                                            <TableCell>{item.product_name}</TableCell>
-                                            <TableCell>{item.quantity}</TableCell>
-                                            <TableCell>{currency}{Number(item.unit_price).toFixed(2)}</TableCell>
-                                            <TableCell className="text-right">{currency}{(item.quantity * item.unit_price).toFixed(2)}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                            <div className="max-h-[50vh] overflow-y-auto space-y-6 pr-2">
+                                {/* Prescription Items */}
+                                {selectedInvoice.items?.filter((i: any) => i.item_type === 'rx').length > 0 && (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2 text-indigo-700 font-bold text-sm uppercase tracking-wider">
+                                            <FileText className="w-4 h-4" /> Prescription Items
+                                        </div>
+                                        <Table className="border rounded-lg overflow-hidden">
+                                            <TableHeader className="bg-indigo-50">
+                                                <TableRow>
+                                                    <TableHead>Medication</TableHead>
+                                                    <TableHead>Freq</TableHead>
+                                                    <TableHead className="text-center">Qty</TableHead>
+                                                    <TableHead className="text-right">Price</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {selectedInvoice.items.filter((i: any) => i.item_type === 'rx').map((item: any, idx: number) => (
+                                                    <TableRow key={idx}>
+                                                        <TableCell className="font-medium">{item.product_name}</TableCell>
+                                                        <TableCell><Badge variant="outline" className="font-normal">{item.frequency || 'N/A'}</Badge></TableCell>
+                                                        <TableCell className="text-center">{item.quantity}</TableCell>
+                                                        <TableCell className="text-right">{currency}{(item.quantity * item.unit_price).toFixed(2)}</TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                )}
+
+                                {/* OTC Items */}
+                                {selectedInvoice.items?.filter((i: any) => i.item_type === 'otc').length > 0 && (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2 text-slate-700 font-bold text-sm uppercase tracking-wider">
+                                            <Receipt className="w-4 h-4" /> Over The Counter Items
+                                        </div>
+                                        <Table className="border rounded-lg overflow-hidden">
+                                            <TableHeader className="bg-slate-50">
+                                                <TableRow>
+                                                    <TableHead>Product</TableHead>
+                                                    <TableHead className="text-center">Qty</TableHead>
+                                                    <TableHead className="text-right">Price</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {selectedInvoice.items.filter((i: any) => i.item_type === 'otc').map((item: any, idx: number) => (
+                                                    <TableRow key={idx}>
+                                                        <TableCell className="font-medium">{item.product_name}</TableCell>
+                                                        <TableCell className="text-center">{item.quantity}</TableCell>
+                                                        <TableCell className="text-right">{currency}{(item.quantity * item.unit_price).toFixed(2)}</TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                     <DialogFooter>

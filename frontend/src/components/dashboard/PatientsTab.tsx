@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import PatientProfile from './PatientProfile';
 
-export default function PatientsTab() {
+export default function PatientsTab({ currency = '$' }: { currency?: string }) {
     const [searchPhone, setSearchPhone] = useState('');
     const [patients, setPatients] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -152,6 +152,7 @@ export default function PatientsTab() {
                 <PatientProfile
                     patientId={selectedPatientId}
                     isOpen={!!selectedPatientId}
+                    currency={currency}
                     onClose={() => {
                         setSelectedPatientId(null);
                         handleSearch(); // Refresh list in case of opt-out

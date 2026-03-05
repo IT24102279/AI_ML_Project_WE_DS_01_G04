@@ -15,14 +15,17 @@ interface PatientProfileProps {
     patientId: string;
     isOpen: boolean;
     onClose: () => void;
+    currency?: string;
 }
 
-export default function PatientProfile({ patientId, isOpen, onClose }: PatientProfileProps) {
+export default function PatientProfile({ patientId, isOpen, onClose, currency = '$' }: PatientProfileProps) {
     const [patient, setPatient] = useState<any>(null);
     const [discountData, setDiscountData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState({ name: '', phone: '', address: '', birth_year: '', clinical_notes: '' });
+    const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+    const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -81,6 +84,16 @@ export default function PatientProfile({ patientId, isOpen, onClose }: PatientPr
             loadPatientData();
         } catch (error: any) {
             toast({ title: 'Update Failed', description: error.message, variant: 'destructive' });
+        }
+    };
+
+    const viewInvoice = async (id: number) => {
+        try {
+            const data = await fetchWithAuth(`/pos/invoice/${id}`);
+            setSelectedInvoice(data);
+            setIsInvoiceModalOpen(true);
+        } catch (error: any) {
+            toast({ title: "Error", description: "Failed to load invoice details.", variant: "destructive" });
         }
     };
 
@@ -211,9 +224,8 @@ export default function PatientProfile({ patientId, isOpen, onClose }: PatientPr
                 </div>
 
                 <Tabs defaultValue="purchases" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
+                    <TabsList className="grid w-full grid-cols-1">
                         <TabsTrigger value="purchases" className="gap-2"><Receipt className="w-4 h-4" /> Purchase History</TabsTrigger>
-                        <TabsTrigger value="prescriptions" className="gap-2"><FileText className="w-4 h-4" /> Digital Prescriptions</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="purchases" className="border rounded-md mt-2">
@@ -224,6 +236,7 @@ export default function PatientProfile({ patientId, isOpen, onClose }: PatientPr
                                     <TableHead>Date</TableHead>
                                     <TableHead>Method</TableHead>
                                     <TableHead className="text-right">Total Amount</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -232,42 +245,17 @@ export default function PatientProfile({ patientId, isOpen, onClose }: PatientPr
                                         <TableCell className="font-medium">INV-{inv.invoice_id}</TableCell>
                                         <TableCell>{new Date(inv.created_at).toLocaleDateString()}</TableCell>
                                         <TableCell>{inv.payment_method}</TableCell>
-                                        <TableCell className="text-right font-bold">${Number(inv.total_amount).toFixed(2)}</TableCell>
+                                        <TableCell className="text-right font-bold">{currency}{Number(inv.total_amount).toFixed(2)}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="sm" onClick={() => viewInvoice(inv.invoice_id)} className="text-blue-600 gap-1">
+                                                <FileText className="w-4 h-4" /> View Details
+                                            </Button>
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                                 {patient.history.invoices.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={4} className="text-center text-slate-500 py-4">No past purchases linked.</TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TabsContent>
-
-                    <TabsContent value="prescriptions" className="border rounded-md mt-2">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Script ID</TableHead>
-                                    <TableHead>Date Uploaded</TableHead>
-                                    <TableHead>Verification Status</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {patient.history.prescriptions.map((rx: any) => (
-                                    <TableRow key={rx.prescription_id}>
-                                        <TableCell className="font-medium">RX-{rx.prescription_id}</TableCell>
-                                        <TableCell>{new Date(rx.created_at).toLocaleDateString()}</TableCell>
-                                        <TableCell>
-                                            <Badge variant={rx.status === 'Verified' ? 'default' : 'secondary'}>
-                                                {rx.status}
-                                            </Badge>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                                {patient.history.prescriptions.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={3} className="text-center text-slate-500 py-4">No prescriptions logged.</TableCell>
+                                        <TableCell colSpan={5} className="text-center text-slate-500 py-4">No past purchases linked.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -275,7 +263,92 @@ export default function PatientProfile({ patientId, isOpen, onClose }: PatientPr
                     </TabsContent>
                 </Tabs>
 
+                {/* Invoice Details Modal */}
+                <Dialog open={isInvoiceModalOpen} onOpenChange={setIsInvoiceModalOpen}>
+                    <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                            <DialogTitle>Order Details - INV-{selectedInvoice?.invoice_id}</DialogTitle>
+                            <DialogDescription>
+                                Date: {selectedInvoice && new Date(selectedInvoice.received_at).toLocaleString()} | Cashier: {selectedInvoice?.cashier_name}
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
+                            {/* Prescription Section */}
+                            {selectedInvoice?.items?.filter((i: any) => i.item_type === 'rx').length > 0 && (
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 text-indigo-700 font-bold border-b pb-1 border-indigo-100">
+                                        <FileText className="w-4 h-4" /> Prescription Items
+                                    </div>
+                                    <Table>
+                                        <TableHeader className="bg-indigo-50/50">
+                                            <TableRow>
+                                                <TableHead>Medication</TableHead>
+                                                <TableHead>Freq</TableHead>
+                                                <TableHead className="text-center">Qty</TableHead>
+                                                <TableHead className="text-right">Subtotal</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {selectedInvoice.items.filter((i: any) => i.item_type === 'rx').map((item: any, idx: number) => (
+                                                <TableRow key={idx}>
+                                                    <TableCell className="font-medium">{item.product_name}</TableCell>
+                                                    <TableCell><Badge variant="outline" className="font-normal">{item.frequency || 'N/A'}</Badge></TableCell>
+                                                    <TableCell className="text-center">{item.quantity}</TableCell>
+                                                    <TableCell className="text-right">{currency}{(item.quantity * item.unit_price).toFixed(2)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            )}
+
+                            {/* OTC Section */}
+                            {selectedInvoice?.items?.filter((i: any) => i.item_type === 'otc').length > 0 && (
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 text-slate-700 font-bold border-b pb-1 border-slate-100">
+                                        <Receipt className="w-4 h-4" /> Over The Counter Items
+                                    </div>
+                                    <Table>
+                                        <TableHeader className="bg-slate-50/50">
+                                            <TableRow>
+                                                <TableHead>Product</TableHead>
+                                                <TableHead className="text-center">Qty</TableHead>
+                                                <TableHead className="text-right">Subtotal</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {selectedInvoice.items.filter((i: any) => i.item_type === 'otc').map((item: any, idx: number) => (
+                                                <TableRow key={idx}>
+                                                    <TableCell className="font-medium">{item.product_name}</TableCell>
+                                                    <TableCell className="text-center">{item.quantity}</TableCell>
+                                                    <TableCell className="text-right">{currency}{(item.quantity * item.unit_price).toFixed(2)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            )}
+
+                            <div className="flex justify-between items-center py-4 border-t border-slate-200 mt-4">
+                                <div className="text-sm text-slate-500">
+                                    Payment Method: <span className="font-medium text-slate-800">{selectedInvoice?.payment_method}</span>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-slate-500 text-xs">Total Amount Paid</p>
+                                    <p className="text-2xl font-black text-blue-700">{currency}{Number(selectedInvoice?.total_amount).toFixed(2)}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 mt-4">
+                            <Button variant="outline" onClick={() => window.open(`/receipt/${selectedInvoice.invoice_id}`, '_blank')}>Print Receipt</Button>
+                            <Button onClick={() => setIsInvoiceModalOpen(false)}>Close</Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
             </DialogContent>
-        </Dialog>
+        </Dialog >
     );
 }

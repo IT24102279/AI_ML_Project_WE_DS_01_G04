@@ -216,7 +216,7 @@ export default function Dashboard() {
                         <TabsContent value="inventory">
                             <Card className="shadow-sm">
                                 <CardContent className="p-6">
-                                    <InventoryTab />
+                                    <InventoryTab currency={settings.currency || '$'} />
                                 </CardContent>
                             </Card>
                         </TabsContent>
@@ -255,7 +255,7 @@ export default function Dashboard() {
 
                     {canViewFinance && (
                         <TabsContent value="analytics">
-                            <FinancialAnalytics />
+                            <FinancialAnalytics currency={settings.currency || '$'} />
                         </TabsContent>
                     )}
 
@@ -267,7 +267,7 @@ export default function Dashboard() {
 
                     {canManagePatients && (
                         <TabsContent value="patients">
-                            <PatientsTab />
+                            <PatientsTab currency={settings.currency || '$'} />
                         </TabsContent>
                     )}
 

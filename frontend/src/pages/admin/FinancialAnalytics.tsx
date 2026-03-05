@@ -17,7 +17,7 @@ interface AnalyticsData {
     }[];
 }
 
-export default function FinancialAnalytics() {
+export default function FinancialAnalytics({ currency = '$' }: { currency?: string }) {
     const [data, setData] = useState<AnalyticsData | null>(null);
     const [startDate, setStartDate] = useState(() => {
         const d = new Date();
@@ -57,8 +57,8 @@ export default function FinancialAnalytics() {
     ].filter(d => d.value > 0);
     const COLORS = ['#ef4444', '#f59e0b', '#8b5cf6'];
 
-    // Format Currency LKR
-    const formatCurrency = (val: number) => `₨ ${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    // Format Currency
+    const formatCurrency = (val: number) => `${currency} ${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -161,7 +161,7 @@ export default function FinancialAnalytics() {
                                     <YAxis
                                         stroke="#94a3b8"
                                         fontSize={12}
-                                        tickFormatter={(value) => `₨${value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`}
+                                        tickFormatter={(value) => `${currency}${value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`}
                                         tickLine={false}
                                         axisLine={false}
                                     />

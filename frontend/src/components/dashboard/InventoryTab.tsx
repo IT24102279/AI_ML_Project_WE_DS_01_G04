@@ -36,7 +36,7 @@ interface AlertData {
     nearExpiry: any[];
 }
 
-export default function InventoryTab() {
+export default function InventoryTab({ currency = '$' }: { currency?: string }) {
     const [products, setProducts] = useState<Product[]>([]);
     const [batches, setBatches] = useState<Batch[]>([]);
     const [alerts, setAlerts] = useState<AlertData>({ lowStock: [], nearExpiry: [] });
@@ -212,7 +212,7 @@ export default function InventoryTab() {
                                         <Input type="number" required value={productForm.current_stock} onChange={e => setProductForm({ ...productForm, current_stock: e.target.value as any })} />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Unit Selling Price</Label>
+                                        <Label>Unit Selling Price ({currency})</Label>
                                         <Input type="number" step="0.01" required value={productForm.selling_price} onChange={e => setProductForm({ ...productForm, selling_price: e.target.value as any })} />
                                     </div>
                                     <div className="space-y-2">
@@ -246,7 +246,7 @@ export default function InventoryTab() {
                                     <TableCell>{p.measure_unit}</TableCell>
                                     <TableCell>{p.category}</TableCell>
                                     <TableCell className="font-bold text-lg text-blue-800">{p.current_stock}</TableCell>
-                                    <TableCell>{Number(p.selling_price || 0).toFixed(2)}</TableCell>
+                                    <TableCell>{currency}{Number(p.selling_price || 0).toFixed(2)}</TableCell>
                                     <TableCell>{p.reorder_threshold}</TableCell>
                                     <TableCell className="text-right space-x-2">
                                         <Button variant="outline" size="sm" onClick={() => { setProductForm({ id: p.product_id, name: p.name, measure_unit: p.measure_unit, category: p.category || '', reorder_threshold: p.reorder_threshold, current_stock: p.current_stock, selling_price: p.selling_price || 0 }); setIsProductOpen(true); }}>Edit</Button>
@@ -318,7 +318,7 @@ export default function InventoryTab() {
                                         </div>
                                     )}
                                     <div className="space-y-1">
-                                        <Label>Unit Cost</Label>
+                                        <Label>Unit Cost ({currency})</Label>
                                         <Input type="number" step="0.01" required value={batchForm.unit_cost} onChange={e => setBatchForm({ ...batchForm, unit_cost: e.target.value as any })} />
                                     </div>
 
@@ -348,7 +348,7 @@ export default function InventoryTab() {
                                     <TableCell>{new Date(b.expiry_date).toLocaleDateString()}</TableCell>
                                     <TableCell>{b.location}</TableCell>
                                     <TableCell className="font-bold">{b.current_stock_level}</TableCell>
-                                    <TableCell>{Number(b.unit_cost || 0).toFixed(2)}</TableCell>
+                                    <TableCell>{currency}{Number(b.unit_cost || 0).toFixed(2)}</TableCell>
                                     <TableCell className="text-right space-x-2">
                                         <Button variant="outline" size="sm" onClick={() => {
                                             // Handle timezone offsets issues by mapping properly

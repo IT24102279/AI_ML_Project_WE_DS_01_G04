@@ -43,7 +43,9 @@
     {
       "product_id": 10,
       "quantity": 2,
-      "unit_price": 750.25
+      "unit_price": 750.25,
+      "type": "otc",
+      "frequency": ""
     }
   ]
 }
@@ -74,7 +76,9 @@
     {
       "product_id": 5,
       "quantity": 2,
-      "unit_price": 750.25
+      "unit_price": 750.25,
+      "type": "rx",
+      "frequency": "BID"
     }
   ]
 }
