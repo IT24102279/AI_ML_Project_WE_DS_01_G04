@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS Supplier_Invoices (
 CREATE TABLE IF NOT EXISTS Inventory_Batches (
     batch_id INT AUTO_INCREMENT PRIMARY KEY,
     product_id INT NOT NULL,
-    supplier_invoice_id INT NOT NULL,
+    supplier_invoice_id INT DEFAULT NULL,
     batch_number VARCHAR(100) NOT NULL,
     expiry_date DATE NOT NULL,
     location VARCHAR(100),

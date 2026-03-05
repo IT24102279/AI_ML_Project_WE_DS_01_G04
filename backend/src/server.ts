@@ -50,6 +50,13 @@ app.post('/api/inventory/receive', authenticateToken, hasPermission('VIEW_TAB_GR
 app.get('/api/inventory/alerts', authenticateToken, hasPermission('VIEW_TAB_INVENTORY'), getAlerts);
 app.get('/api/inventory/grn-history', authenticateToken, hasPermission('VIEW_TAB_GRN'), getGrnHistory);
 
+// --- Batches Routes ---
+import { getAllBatches, createBatch, updateBatch, deleteBatch } from './controllers/inventory.controller';
+app.get('/api/inventory/batches', authenticateToken, hasPermission('VIEW_TAB_INVENTORY'), getAllBatches);
+app.post('/api/inventory/batches', authenticateToken, hasPermission('VIEW_TAB_INVENTORY'), createBatch);
+app.put('/api/inventory/batches/:id', authenticateToken, hasPermission('VIEW_TAB_INVENTORY'), updateBatch);
+app.delete('/api/inventory/batches/:id', authenticateToken, hasPermission('VIEW_TAB_INVENTORY'), deleteBatch);
+
 // --- Finance Routes ---
 app.get('/api/finance/pending-checks', authenticateToken, hasPermission('VIEW_TAB_FINANCE'), getPendingChecks);
 app.patch('/api/finance/checks/:id/clear', authenticateToken, hasPermission('VIEW_TAB_FINANCE'), clearCheck);

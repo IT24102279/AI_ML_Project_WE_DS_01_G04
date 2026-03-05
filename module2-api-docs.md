@@ -252,3 +252,83 @@ INVENTORY_FINANCE_RAW_ACCEPTED
   ]
 }
 ```
+
+---
+
+## 6. Batches
+
+### List All Batches
+* **Endpoint:** `GET /api/inventory/batches`
+* **Description:** Retrieves all inventory batches with product details.
+* **Required Permission:** `VIEW_TAB_INVENTORY`
+* **Request Payload:** None
+* **Response Payload (JSON):**
+```json
+[
+  {
+    "batch_id": 1,
+    "product_id": 1,
+    "supplier_invoice_id": null,
+    "batch_number": "B-1001",
+    "expiry_date": "2025-12-31T00:00:00.000Z",
+    "location": "A1",
+    "purchased_quantity": 100,
+    "bonus_quantity": 0,
+    "unit_cost": 5.50,
+    "current_stock_level": 100,
+    "product_name": "Paracetamol 500mg"
+  }
+]
+```
+
+### Create Batch
+* **Endpoint:** `POST /api/inventory/batches`
+* **Description:** Creates a new inventory batch manually and increases product current stock. Activity recorded in Audit_Logs.
+* **Required Permission:** `VIEW_TAB_INVENTORY`
+* **Request Payload (JSON):**
+```json
+{
+  "product_id": 1,
+  "batch_number": "B-2002",
+  "expiry_date": "2026-05-01",
+  "location": "A2",
+  "purchased_quantity": 50,
+  "bonus_quantity": 5,
+  "unit_cost": 6.00
+}
+```
+* **Response Payload (JSON):**
+```json
+{ "message": "Batch created successfully", "batch_id": 2 }
+```
+
+### Update Batch
+* **Endpoint:** `PUT /api/inventory/batches/:id`
+* **Description:** Updates an existing inventory batch and calculates difference in current_stock_level to reflect changes on Products table current_stock. Activity recorded in Audit_Logs.
+* **Required Permission:** `VIEW_TAB_INVENTORY`
+* **Request Payload (JSON):**
+```json
+{
+  "batch_number": "B-2002-MOD",
+  "expiry_date": "2026-05-01",
+  "location": "A3",
+  "purchased_quantity": 50,
+  "bonus_quantity": 5,
+  "unit_cost": 6.00,
+  "current_stock_level": 40
+}
+```
+* **Response Payload (JSON):**
+```json
+{ "message": "Batch updated successfully" }
+```
+
+### Delete Batch
+* **Endpoint:** `DELETE /api/inventory/batches/:id`
+* **Description:** Deletes a batch and corrects product current_stock. Activity recorded in Audit_Logs.
+* **Required Permission:** `VIEW_TAB_INVENTORY`
+* **Request Payload:** None
+* **Response Payload (JSON):**
+```json
+{ "message": "Batch deleted successfully" }
+```
