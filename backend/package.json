@@ -4,11 +4,34 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest --runInBand --forceExit",
+    "test:output": "jest --runInBand --forceExit --json --outputFile=jest-report.json",
+    "test:coverage": "jest --runInBand --forceExit --coverage",
+    "test:report": "npm run test:output && node run-test-report.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "roots": ["<rootDir>/src/__tests__"],
+    "testMatch": ["**/*.test.ts"],
+    "moduleFileExtensions": ["ts", "js", "json"],
+    "transform": {
+      "^.+\\.ts$": ["ts-jest", {
+        "tsconfig": "tsconfig.test.json",
+        "diagnostics": {
+          "ignoreCodes": ["TS2307"]
+        }
+      }]
+    },
+    "moduleNameMapper": {
+      "^.*/server$": "<rootDir>/src/__tests__/__mocks__/server.ts",
+      "^.*/db$": "<rootDir>/src/__tests__/__mocks__/customerDb.ts",
+      "^../controllers/(.*)$": "<rootDir>/src/controllers/$1"
+    }
+  },
   "dependencies": {
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
@@ -23,8 +46,14 @@
     "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.3.1",
+    "@types/supertest": "^7.2.0",
+    "jest": "^30.3.0",
+    "node-mocks-http": "^1.17.2",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.6",
     "tsx": "^4.21.0"
   }
 }

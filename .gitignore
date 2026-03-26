@@ -47,3 +47,8 @@ backend/build/
 *.local
 frontend/dist/
 frontend/dist-ssr/
+commit_history.csv
+
+# Test reports & traces
+jest-report.json
+test-trace.jsonl
