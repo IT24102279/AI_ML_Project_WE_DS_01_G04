@@ -49,6 +49,7 @@ export const processPrescription = async (req: Request, res: Response) => {
 
 export const saveDraftSale = async (req: AuthRequest, res: Response) => {
     const { is_over_the_counter, patient_id, prescription_id, payment_method, total_amount, money_given, notes, items } = req.body;
+    if (money_given < 0) return res.status(400).json({ error: 'Money given cannot be negative' });
     const empId = req.user?.emp_id;
 
     if (!empId) return res.status(401).json({ error: 'Unauthorized' });
@@ -91,6 +92,7 @@ export const saveDraftSale = async (req: AuthRequest, res: Response) => {
 
 export const confirmCheckout = async (req: AuthRequest, res: Response) => {
     const { is_over_the_counter, patient_id, prescription_id, payment_method, total_amount, money_given, notes, items } = req.body;
+    if (money_given < 0) return res.status(400).json({ error: 'Money given cannot be negative' });
     const empId = req.user?.emp_id;
 
     if (!empId) return res.status(401).json({ error: 'Unauthorized' });

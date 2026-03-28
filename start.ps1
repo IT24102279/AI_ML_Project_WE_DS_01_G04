@@ -22,6 +22,10 @@
 
 # Write-Host "Database is ready."
 
+# Kill existing node/tsx processes to avoid port conflicts
+Write-Host "Cleaning up old processes..."
+Get-Process -Name "node", "npx" -ErrorAction SilentlyContinue | Stop-Process -Force
+
 Write-Host "Starting Backend Server..."
 Set-Location -Path "backend"
 if (-not (Test-Path "node_modules")) {

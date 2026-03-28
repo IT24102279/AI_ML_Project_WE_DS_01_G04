@@ -30,6 +30,9 @@ async function runSeed() {
     await ensureColumn('Employee', 'base_salary', 'ALTER TABLE Employee ADD COLUMN base_salary DECIMAL(10,2) DEFAULT 0.00');
     await ensureColumn('Employee', 'hourly_rate', 'ALTER TABLE Employee ADD COLUMN hourly_rate DECIMAL(10,2) DEFAULT NULL');
     await ensureColumn('Employee', 'standard_deductions', 'ALTER TABLE Employee ADD COLUMN standard_deductions DECIMAL(10,2) DEFAULT 0.00');
+    await ensureColumn('Products', 'selling_price', 'ALTER TABLE Products ADD COLUMN selling_price DECIMAL(10,2) DEFAULT 0.00');
+    await ensureColumn('Sale_Items', 'item_type', "ALTER TABLE Sale_Items ADD COLUMN item_type ENUM('rx', 'otc') DEFAULT 'otc'");
+    await ensureColumn('Sale_Items', 'frequency', "ALTER TABLE Sale_Items ADD COLUMN frequency VARCHAR(100)");
 
     console.log("Seeding Permissions...");
     const permissionsData = [

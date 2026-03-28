@@ -405,7 +405,18 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
                                             min="0"
                                             step="0.01"
                                             value={moneyGiven || ''}
-                                            onChange={(e) => setMoneyGiven(e.target.value ? Number(e.target.value) : 0)}
+                                            onChange={(e) => {
+                                                const val = e.target.value ? Number(e.target.value) : 0;
+                                                if (val < 0) {
+                                                    toast({ 
+                                                        title: "Invalid Input", 
+                                                        description: "Money given cannot be a negative value", 
+                                                        variant: "destructive" 
+                                                    });
+                                                    return;
+                                                }
+                                                setMoneyGiven(val);
+                                            }}
                                             className="text-lg font-semibold"
                                         />
                                     </div>

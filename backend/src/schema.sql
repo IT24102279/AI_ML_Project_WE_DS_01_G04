@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS Products (
     measure_unit VARCHAR(100) NOT NULL,
     category VARCHAR(100),
     reorder_threshold INT DEFAULT 0,
-    current_stock INT DEFAULT 0
+    current_stock INT DEFAULT 0,
+    selling_price DECIMAL(10,2) DEFAULT 0.00
 );
 
 CREATE TABLE IF NOT EXISTS Suppliers (
@@ -145,6 +146,8 @@ CREATE TABLE IF NOT EXISTS Sale_Items (
     batch_id INT NOT NULL,
     quantity INT NOT NULL,
     unit_price DECIMAL(10,2) NOT NULL,
+    item_type ENUM('rx', 'otc') DEFAULT 'otc',
+    frequency VARCHAR(100),
     FOREIGN KEY (invoice_id) REFERENCES Sales_Invoices(invoice_id) ON DELETE CASCADE,
     FOREIGN KEY (batch_id) REFERENCES Inventory_Batches(batch_id) ON DELETE RESTRICT
 );
