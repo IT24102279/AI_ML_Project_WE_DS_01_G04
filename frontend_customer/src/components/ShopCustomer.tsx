@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Search, ShoppingCart, LogOut, MessageSquare, Truck, Clock } from 'lucide-react';
 
 interface Product {
     product_id: number;
@@ -18,16 +20,25 @@ interface CartItem {
 }
 
 export default function ShopCustomer() {
+    const navigate = useNavigate();
     const [products, setProducts] = useState<Product[]>([]);
     const [cart, setCart] = useState<CartItem[]>([]);
-    const [isPreorder, setIsPreorder] = useState(false);
+    const [orders, setOrders] = useState<any[]>([]);
     const [statusMsg, setStatusMsg] = useState('');
-    const customerId = 1; // Assuming same mock user as the chat
+    const [isPreorder, setIsPreorder] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const user = JSON.parse(localStorage.getItem('user') || '{"user_id":1}');
+    const customerId = user.user_id;
 
     useEffect(() => {
         fetchProducts();
         fetchStatus();
         fetchCart();
+        fetchOrders();
+
+        // Optional polling for order status
+        const intervalId = setInterval(fetchOrders, 10000);
+        return () => clearInterval(intervalId);
     }, []);
 
     const fetchProducts = async () => {
@@ -52,6 +63,13 @@ export default function ShopCustomer() {
         try {
             const res = await fetch(`http://localhost:4000/api/cart/${customerId}`);
             if (res.ok) setCart(await res.json());
+        } catch (e) { console.error(e); }
+    };
+
+    const fetchOrders = async () => {
+        try {
+            const res = await fetch(`http://localhost:4000/api/orders?customer_id=${customerId}`);
+            if (res.ok) setOrders(await res.json());
         } catch (e) { console.error(e); }
     };
 
@@ -81,6 +99,25 @@ export default function ShopCustomer() {
         } catch (e) { console.error(e); }
     };
 
+    const updateCartItem = async (cartItemId: number, newQuantity: number) => {
+        try {
+            if (newQuantity <= 0) return removeFromCart(cartItemId);
+            
+            // Optimistic update
+            setCart(cart.map(c => c.cart_item_id === cartItemId ? { ...c, quantity: newQuantity } : c));
+
+            const res = await fetch('http://localhost:4000/api/cart/update', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cart_item_id: cartItemId, quantity: newQuantity })
+            });
+            if (!res.ok) fetchCart(); // Revert on failure
+        } catch (e) {
+            console.error(e);
+            fetchCart();
+        }
+    };
+
     const handleCheckout = async () => {
         if (cart.length === 0) return;
         try {
@@ -92,6 +129,7 @@ export default function ShopCustomer() {
             if (res.ok) {
                 alert("Order Placed Successfully!");
                 setCart([]);
+                fetchOrders();
             } else {
                 alert("Checkout failed.");
             }
@@ -106,14 +144,43 @@ export default function ShopCustomer() {
             {/* Product Grid Area */}
             <div className="w-full md:w-2/3 flex flex-col gap-4">
                 {isPreorder && (
-                    <div className="bg-amber-100 border border-amber-300 text-amber-900 p-4 rounded-lg font-medium shadow-sm">
-                        ⚠️ Pre-Order Mode: {statusMsg}
+                    <div className="bg-amber-100 border border-amber-300 text-amber-900 p-4 rounded-lg font-medium shadow-sm flex items-center gap-3">
+                        <Clock className="w-5 h-5 shrink-0" />
+                        <span>Pre-Order Mode: {statusMsg}</span>
                     </div>
                 )}
 
-                <h2 className="text-2xl font-bold text-slate-800 border-b pb-2">Pantry & Health Basics</h2>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 mb-4 gap-4">
+                    <h2 className="text-2xl font-bold text-slate-800 shrink-0">Pantry & Health Basics</h2>
+                    
+                    <div className="relative w-full md:max-w-xs">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                            type="text"
+                            placeholder="Search products..."
+                            className="w-full pl-10 pr-4 py-2 bg-slate-100 border-none rounded-full text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-4 shrink-0">
+                        <Link to="/" className="text-blue-600 font-bold hover:underline flex items-center gap-1 text-sm bg-blue-50 px-3 py-1.5 rounded-full">
+                            <MessageSquare className="w-4 h-4" />
+                            <span>Go to Support</span>
+                        </Link>
+                        <button 
+                            onClick={() => { localStorage.removeItem('user'); navigate('/login'); }} 
+                            className="bg-slate-100 hover:bg-red-50 hover:text-red-600 text-slate-600 p-2 rounded-full transition-all"
+                            title="Sign Out"
+                        >
+                            <LogOut className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+                
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {products.map(p => (
+                    {products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase())).map(p => (
                         <div key={p.product_id} className="bg-white border rounded-xl overflow-hidden shadow-sm flex flex-col">
                             <div className="h-40 bg-slate-100 flex items-center justify-center p-4">
                                 <img src={p.image_url} alt={p.name} className="h-full object-contain mix-blend-multiply opacity-80" />
@@ -144,8 +211,12 @@ export default function ShopCustomer() {
             {/* Cart Sidebar */}
             <div className="w-full md:w-1/3">
                 <div className="bg-white border rounded-xl shadow-sm p-5 sticky top-20 flex flex-col max-h-[calc(100vh-100px)]">
-                    <h2 className="text-xl font-bold text-slate-800 mb-4 flex justify-between items-center">
-                        Your Cart <span className="bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded-full">{cart.length}</span>
+                    <h2 className="text-xl font-bold text-slate-800 mb-4 flex justify-between items-center bg-slate-50 -mx-5 -mt-5 p-5 border-b rounded-t-xl">
+                        <div className="flex items-center gap-2">
+                            <ShoppingCart className="w-5 h-5 text-blue-600" />
+                            Your Cart
+                        </div>
+                        <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">{cart.length}</span>
                     </h2>
 
                     <div className="flex-1 overflow-y-auto pr-2 flex flex-col gap-3">
@@ -153,7 +224,22 @@ export default function ShopCustomer() {
                             <div key={item.cart_item_id || Math.random()} className="flex justify-between items-start border-b pb-3">
                                 <div>
                                     <div className="font-medium text-slate-800 text-sm">{item.name}</div>
-                                    <div className="text-slate-500 text-xs mt-1">LKR {Number(item.price).toFixed(2)} x {item.quantity}</div>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <button 
+                                            onClick={() => updateCartItem(item.cart_item_id!, item.quantity - 1)}
+                                            className="w-6 h-6 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded text-slate-600 font-bold border border-slate-200 transition-colors"
+                                        >
+                                            -
+                                        </button>
+                                        <span className="text-xs font-bold w-6 text-center">{item.quantity}</span>
+                                        <button 
+                                            onClick={() => updateCartItem(item.cart_item_id!, item.quantity + 1)}
+                                            className="w-6 h-6 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded text-slate-600 font-bold border border-slate-200 transition-colors"
+                                        >
+                                            +
+                                        </button>
+                                        <span className="text-slate-400 text-[10px] ml-2 font-medium">LKR {Number(item.price).toFixed(2)} ea.</span>
+                                    </div>
                                 </div>
                                 <div className="flex flex-col items-end gap-2">
                                     <span className="font-bold text-sm">LKR {(Number(item.price) * item.quantity).toFixed(2)}</span>
@@ -169,9 +255,9 @@ export default function ShopCustomer() {
                             </div>
                         ))}
                         {cart.length === 0 && (
-                            <div className="text-center text-slate-400 py-8 flex flex-col items-center gap-2">
-                                <span className="text-4xl">🛒</span>
-                                <p>Your cart is empty.</p>
+                            <div className="text-center text-slate-300 py-12 flex flex-col items-center gap-2">
+                                <ShoppingCart className="w-12 h-12 stroke-[1.5]" />
+                                <p className="text-sm font-medium">Your cart is empty.</p>
                             </div>
                         )}
                     </div>
@@ -188,7 +274,33 @@ export default function ShopCustomer() {
                         >
                             Checkout Order
                         </button>
-                        <p className="text-xs text-center text-slate-500 mt-3">Free local delivery on all orders.</p>
+                    </div>
+
+                    <div className="mt-6 pt-5 border-t border-dashed">
+                        <h2 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
+                            <Truck className="w-5 h-5 text-emerald-600" />
+                            Track Deliveries
+                        </h2>
+                        <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+                            {orders.map(order => (
+                                <div key={order.order_id} className="bg-slate-50 border rounded p-2 text-sm flex flex-col gap-1">
+                                    <div className="flex justify-between font-bold text-slate-700">
+                                        <span>ORD-{order.order_id}</span>
+                                        <span className={`px-2 py-[2px] rounded-full text-[9px] uppercase font-bold flex items-center ${
+                                            order.status === 'Pending' ? 'bg-red-100 text-red-800' :
+                                            order.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' :
+                                            'bg-blue-100 text-blue-800'
+                                        }`}>{order.status}</span>
+                                    </div>
+                                    <div className="text-xs text-slate-500">
+                                        Ordered: {new Date(order.created_at).toLocaleDateString()}
+                                    </div>
+                                </div>
+                            ))}
+                            {orders.length === 0 && (
+                                <p className="text-xs text-slate-400 text-center py-2">No active logistics/orders.</p>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

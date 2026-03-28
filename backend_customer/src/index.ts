@@ -17,8 +17,18 @@ app.use(express.json());
 async function initDB() {
     try {
         console.log('Connecting to Customer DB...');
-        // Wait for schema execution (in prod we wouldn't run this every boot, but for this exercise we do)
-        // Assume schema.sql is run externally or we run it now, but for safety we just insert the mock user.
+        
+        try {
+            await pool.query(`ALTER TABLE Customers 
+                ADD COLUMN name VARCHAR(255), 
+                ADD COLUMN phone VARCHAR(20), 
+                ADD COLUMN address TEXT, 
+                ADD COLUMN password_hash VARCHAR(255), 
+                ADD COLUMN role ENUM('customer', 'admin') DEFAULT 'customer'`);
+        } catch(e) {} // Ignores duplicate column error if already exists
+
+        const adminHash = crypto.createHash('sha256').update('admin123').digest('hex');
+        await pool.query(`INSERT IGNORE INTO Customers (id, name, role, password_hash) VALUES (999, 'Admin', 'admin', ?)`, [adminHash]);
         await pool.query(`INSERT IGNORE INTO Customers (id, anonymized) VALUES (1, FALSE)`);
         await pool.query(`INSERT IGNORE INTO Pharmacist_Schedules (id, pharmacist_name, date, shift_start, shift_end) VALUES (1, 'Dr. Smith', CURDATE(), '09:00:00', '17:00:00')`);
 
@@ -30,7 +40,16 @@ async function initDB() {
             (999, 'Amoxicillin 500mg', 12.00, 'Medicine', 'https://via.placeholder.com/150', TRUE)`);
 
         // Mock Drivers
-        await pool.query(`INSERT IGNORE INTO Customers (id, anonymized) VALUES (44, FALSE), (55, FALSE)`); // Drivers are inherently auth users in a real app
+        await pool.query(`CREATE TABLE IF NOT EXISTS Drivers (
+            driver_id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            vehicle_info VARCHAR(255),
+            status ENUM('Active', 'Inactive') DEFAULT 'Active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+        await pool.query(`INSERT IGNORE INTO Drivers (driver_id, name, vehicle_info) VALUES 
+            (44, 'Tim Fast', 'Van (WP AAB-1234)'),
+            (55, 'Sarah Swift', 'Bike (WP BCD-5678)')`);
 
         console.log('Mock Data initialized.');
     } catch (error) {
@@ -38,6 +57,38 @@ async function initDB() {
     }
 }
 initDB();
+
+// --- AUTHENTICATION ROUTES ---
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        const { name, phone, address, password, role = 'customer' } = req.body;
+        const hash = crypto.createHash('sha256').update(password).digest('hex');
+        const [result]: any = await pool.query(
+            `INSERT INTO Customers (name, phone, address, password_hash, role) VALUES (?, ?, ?, ?, ?)`,
+            [name, phone, address, hash, role]
+        );
+        res.json({ user_id: result.insertId, role, status: "Registered" });
+    } catch (e) {
+        res.status(500).json({ error: 'Server Error' });
+    }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { phone, password } = req.body;
+        const hash = crypto.createHash('sha256').update(password).digest('hex');
+        const [users]: any = await pool.query(`SELECT * FROM Customers WHERE phone = ? AND password_hash = ? AND anonymized = FALSE`, [phone, hash]);
+        if (users.length === 0) {
+            // Check for admin fallback
+            const [admins]: any = await pool.query(`SELECT * FROM Customers WHERE name = ? AND password_hash = ?`, [phone, hash]);
+            if (admins.length > 0) return res.json({ user_id: admins[0].id, name: admins[0].name, role: admins[0].role });
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+        res.json({ user_id: users[0].id, name: users[0].name, role: users[0].role });
+    } catch (e) {
+        res.status(500).json({ error: 'Server Error' });
+    }
+});
 
 // --- API ROUTES ---
 
@@ -284,6 +335,16 @@ app.get('/api/admin/appointments', async (req, res) => {
     }
 });
 
+// Admin Update Appointment Status
+app.patch('/api/admin/appointments/:id/status', async (req, res) => {
+    try {
+        await pool.query(`UPDATE Appointments SET status = ? WHERE id = ?`, [req.body.status, req.params.id]);
+        res.json({ status: "Updated" });
+    } catch (error) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 // 9. Customer Polling route
 app.get('/api/chat/sessions/:id/messages', async (req, res) => {
     try {
@@ -308,10 +369,8 @@ app.get('/api/shop/products', async (req, res) => {
 // Get Shop Status (Check Drivers)
 app.get('/api/shop/status', async (req, res) => {
     try {
-        // In a real app we'd track active sessions. Here we mock check if any drivers exist who have taken an order today. 
-        // For simplicity, we assume Drivers ID 44 and 55 are our fleet.
-        const [rows]: any = await pool.query(`SELECT COUNT(*) as active FROM Delivery_Logs WHERE DATE(timestamp) = CURDATE()`);
-        const activeCount = rows[0].active || 0; // If 0, no one is driving today.
+        const [rows]: any = await pool.query(`SELECT COUNT(*) as active FROM Drivers WHERE status = 'Active'`);
+        const activeCount = rows[0].active || 0;
 
         res.json({
             active_drivers_count: activeCount,
@@ -370,6 +429,19 @@ app.delete('/api/cart/remove/:itemId', async (req, res) => {
     } catch (e) { res.status(500).json({ error: 'Server Error' }); }
 });
 
+// Update Cart Item Quantity
+app.patch('/api/cart/update', async (req, res) => {
+    try {
+        const { cart_item_id, quantity } = req.body;
+        if (quantity <= 0) {
+            await pool.query(`DELETE FROM Cart_Items WHERE cart_item_id = ?`, [cart_item_id]);
+            return res.json({ status: "Removed" });
+        }
+        await pool.query(`UPDATE Cart_Items SET quantity = ? WHERE cart_item_id = ?`, [quantity, cart_item_id]);
+        res.json({ status: "Updated" });
+    } catch (e) { res.status(500).json({ error: 'Server Error' }); }
+});
+
 // Checkout Transaction
 app.post('/api/orders/checkout', async (req, res) => {
     const connection = await pool.getConnection();
@@ -423,40 +495,86 @@ app.put('/api/orders/:id/assign-driver', async (req, res) => {
     try {
         const orderId = req.params.id;
 
-        // Algorithmic SQL: Find the driver with the minimum orders today. 
-        // We assume driver IDs 44 and 55. We look at Delivery_Logs.
+        const [activeDrivers]: any = await pool.query(`
+            SELECT driver_id FROM Drivers d
+            WHERE d.status = 'Active' 
+            AND NOT EXISTS (
+                SELECT 1 FROM Orders o 
+                WHERE o.driver_id = d.driver_id 
+                AND o.status = 'Handed to Driver'
+            )
+        `);
+        if (activeDrivers.length === 0) return res.status(400).json({error: "No active drivers available"});
+
+        const driverIds = activeDrivers.map((d: any) => d.driver_id);
         const [driverLoads]: any = await pool.query(`
             SELECT driver_id, COUNT(*) as current_load 
             FROM Orders 
-            WHERE driver_id IN (44, 55) AND DATE(created_at) = CURDATE() 
+            WHERE driver_id IN (?) AND DATE(created_at) = CURDATE() 
             GROUP BY driver_id 
             ORDER BY current_load ASC 
-            LIMIT 1
-        `);
+        `, [driverIds]);
 
-        // Fallback to driver 44 if no logs exist yet
-        const assignedDriverId = driverLoads.length > 0 ? driverLoads[0].driver_id : 44;
+        // Fallback to first available driver if no logs exist yet
+        const assignedDriverId = driverLoads.length > 0 ? driverLoads[0].driver_id : driverIds[0];
 
         await pool.query(`UPDATE Orders SET driver_id = ?, status = 'Packing' WHERE order_id = ?`, [assignedDriverId, orderId]);
         await pool.query(`INSERT INTO Delivery_Logs (order_id, driver_id, status_update) VALUES (?, ?, 'Assigned & Packing')`, [orderId, assignedDriverId]);
 
         res.json({ order_id: orderId, assigned_driver_id: assignedDriverId, status: "Packing" });
+    } catch (e) { console.error(e); res.status(500).json({ error: 'Server Error' }); }
+});
+
+// Admin manual assign driver
+app.patch('/api/admin/orders/:id/assign-driver', async (req, res) => {
+    try {
+        const orderId = req.params.id;
+        const { driver_id } = req.body;
+        await pool.query(`UPDATE Orders SET driver_id = ?, status = 'Packing' WHERE order_id = ?`, [driver_id, orderId]);
+        await pool.query(`INSERT INTO Delivery_Logs (order_id, driver_id, status_update) VALUES (?, ?, 'Assigned manually')`, [orderId, driver_id]);
+        res.json({ order_id: orderId, driver_id, status: "Packing" });
     } catch (e) { res.status(500).json({ error: 'Server Error' }); }
 });
 
-// Admin/Driver Fetch Orders
+// Admin/Driver/Customer Fetch Orders
 app.get('/api/orders', async (req, res) => {
     try {
-        const { driver_id } = req.query;
-        let query = `SELECT * FROM Orders ORDER BY created_at DESC`;
+        const { driver_id, customer_id } = req.query;
+        let query = `
+            SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address 
+            FROM Orders o 
+            LEFT JOIN Customers c ON o.customer_id = c.id
+            ORDER BY o.created_at DESC`;
         let params: any[] = [];
 
         if (driver_id) {
-            query = `SELECT * FROM Orders WHERE driver_id = ? ORDER BY created_at DESC`;
+            query = `
+                SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address 
+                FROM Orders o 
+                LEFT JOIN Customers c ON o.customer_id = c.id
+                WHERE o.driver_id = ? ORDER BY o.created_at DESC`;
             params = [driver_id];
+        } else if (customer_id) {
+            query = `
+                SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address 
+                FROM Orders o 
+                LEFT JOIN Customers c ON o.customer_id = c.id
+                WHERE o.customer_id = ? ORDER BY o.created_at DESC`;
+            params = [customer_id];
         }
-        const [rows] = await pool.query(query, params);
-        res.json(rows);
+        const [orders]: any = await pool.query(query, params);
+
+        // Fetch Order Items for each order to embed
+        for (let order of orders) {
+            const [items]: any = await pool.query(`
+                SELECT oi.quantity, p.name 
+                FROM Order_Items oi 
+                JOIN Public_Products p ON oi.product_id = p.product_id
+                WHERE oi.order_id = ?`, [order.order_id]);
+            order.items = items;
+        }
+
+        res.json(orders);
     } catch (e) { res.status(500).json({ error: 'Server Error' }); }
 });
 
@@ -470,6 +588,31 @@ app.patch('/api/orders/:id/status', async (req, res) => {
         await pool.query(`INSERT INTO Delivery_Logs (order_id, driver_id, status_update) VALUES (?, ?, ?)`, [orderId, driver_id, status]);
 
         res.json({ order_id: orderId, status });
+    } catch (e) { res.status(500).json({ error: 'Server Error' }); }
+});
+
+// Admin Update Order Status
+app.patch('/api/admin/orders/:id/status', async (req, res) => {
+    try {
+        const orderId = req.params.id;
+        const { status } = req.body;
+        
+        const [orders]: any = await pool.query(`SELECT driver_id FROM Orders WHERE order_id = ?`, [orderId]);
+        const driverId = (orders.length > 0 && orders[0].driver_id) ? orders[0].driver_id : 44;
+
+        await pool.query(`UPDATE Orders SET status = ? WHERE order_id = ?`, [status, orderId]);
+        await pool.query(`INSERT INTO Delivery_Logs (order_id, driver_id, status_update) VALUES (?, ?, ?)`, [orderId, driverId, status]);
+
+        res.json({ order_id: orderId, status });
+    } catch (e) { res.status(500).json({ error: 'Server Error' }); }
+});
+
+// Admin Delete Order
+app.delete('/api/admin/orders/:id', async (req, res) => {
+    try {
+        const orderId = req.params.id;
+        await pool.query(`DELETE FROM Orders WHERE order_id = ?`, [orderId]);
+        res.json({ status: "Deleted" });
     } catch (e) { res.status(500).json({ error: 'Server Error' }); }
 });
 
@@ -513,6 +656,40 @@ app.delete('/api/admin/products/:id', async (req, res) => {
         await pool.query(`DELETE FROM Public_Products WHERE product_id=?`, [req.params.id]);
         res.json({ status: "Deleted" });
     } catch (error) { res.status(500).json({ error: 'Server Error' }); }
+});
+
+// GET Drivers
+app.get('/api/admin/drivers', async (req, res) => {
+    try {
+        const [rows] = await pool.query(`SELECT * FROM Drivers ORDER BY driver_id DESC`);
+        res.json(rows);
+    } catch (e) { res.status(500).json({ error: 'Server Error' }); }
+});
+
+// POST Drivers
+app.post('/api/admin/drivers', async (req, res) => {
+    try {
+        const { name, vehicle_info, status } = req.body;
+        const [result]: any = await pool.query(`INSERT INTO Drivers (name, vehicle_info, status) VALUES (?, ?, ?)`, [name, vehicle_info, status || 'Active']);
+        res.json({ driver_id: result.insertId, status: "Created" });
+    } catch (e) { res.status(500).json({ error: 'Server Error' }); }
+});
+
+// PUT Drivers
+app.put('/api/admin/drivers/:id', async (req, res) => {
+    try {
+        const { name, vehicle_info, status } = req.body;
+        await pool.query(`UPDATE Drivers SET name = ?, vehicle_info = ?, status = ? WHERE driver_id = ?`, [name, vehicle_info, status, req.params.id]);
+        res.json({ status: "Updated" });
+    } catch (e) { res.status(500).json({ error: 'Server Error' }); }
+});
+
+// DELETE Drivers
+app.delete('/api/admin/drivers/:id', async (req, res) => {
+    try {
+        await pool.query(`DELETE FROM Drivers WHERE driver_id = ?`, [req.params.id]);
+        res.json({ status: "Deleted" });
+    } catch (e) { res.status(500).json({ error: 'Server Error' }); }
 });
 
 app.listen(PORT, () => {

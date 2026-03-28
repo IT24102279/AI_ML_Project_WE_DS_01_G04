@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { ShoppingBag, LogOut, Calendar, User, ShieldCheck, Send, Bot, UserRound, Sparkles, MessageSquareHeart } from 'lucide-react';
 
 interface Message {
     message_id?: number;
@@ -8,10 +10,20 @@ interface Message {
 }
 
 export default function CustomerChat() {
+    const navigate = useNavigate();
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputStr, setInputStr] = useState('');
-    const [sessionId] = useState(() => crypto.randomUUID());
-    const [customerId] = useState(1); // Hardcoded mock user ID 1
+    const user = JSON.parse(localStorage.getItem('user') || '{"user_id":1}');
+    const [sessionId] = useState(() => {
+        const key = `chat_session_${user.user_id}`;
+        let sid = localStorage.getItem(key);
+        if (!sid) {
+            sid = crypto.randomUUID();
+            localStorage.setItem(key, sid);
+        }
+        return sid;
+    });
+    const [customerId] = useState(user.user_id);
     const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
     // Auto-scroll inside useEffect
@@ -158,8 +170,26 @@ export default function CustomerChat() {
 
             {/* Sidebar Operations */}
             <div className="w-full md:w-1/3 flex flex-col gap-6">
-                <div className="bg-white border rounded-lg p-6 shadow-sm">
-                    <h2 className="text-xl font-bold mb-4">{editingAppointmentId ? 'Reschedule' : 'Book'} Consultation</h2>
+                <div className="bg-white border rounded-lg shadow-sm flex flex-col">
+                    <div className="flex justify-between items-center border-b p-4 bg-slate-50 rounded-t-lg">
+                        <Link to="/shop" className="text-blue-600 font-bold hover:underline flex items-center gap-2 group transition-all">
+                            <ShoppingBag className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                            <span className="hidden md:inline">Go to Shop</span>
+                        </Link>
+                        <button 
+                            onClick={() => { localStorage.removeItem('user'); navigate('/login'); }} 
+                            className="bg-white border hover:bg-red-50 hover:text-red-600 text-slate-500 p-2 rounded-full transition-all shadow-sm"
+                            title="Sign Out"
+                        >
+                            <LogOut className="w-4 h-4" />
+                        </button>
+                    </div>
+                
+                    <div className="p-6">
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                            <Calendar className="w-5 h-5 text-blue-600" />
+                            {editingAppointmentId ? 'Reschedule' : 'Book'} Consultation
+                        </h2>
                     <form onSubmit={handleBooking} className="flex flex-col gap-4">
                         <div>
                             <label className="block text-sm font-medium mb-1">Date & Time</label>
@@ -220,7 +250,10 @@ export default function CustomerChat() {
                 </div>
 
                 <div className="bg-white border rounded-lg p-6 shadow-sm flex flex-col gap-3">
-                    <h3 className="font-semibold text-slate-800">My Appointments</h3>
+                    <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-slate-400" />
+                        My Appointments
+                    </h3>
                     {myAppointments.length === 0 ? (
                         <p className="text-sm text-slate-500">No upcoming appointments.</p>
                     ) : (
@@ -241,10 +274,14 @@ export default function CustomerChat() {
                             ))}
                         </div>
                     )}
+                    </div>
                 </div>
 
-                <div className="bg-white border rounded-lg p-6 shadow-sm flex flex-col gap-2 mt-auto">
-                    <h3 className="font-semibold">Privacy Controls</h3>
+                <div className="bg-white border rounded-lg p-6 shadow-sm flex flex-col gap-2 mt-auto border-t-4 border-t-amber-100">
+                    <h3 className="font-semibold flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-amber-600" />
+                        Privacy Controls
+                    </h3>
                     <p className="text-sm text-slate-500 mb-2">Request GDPR data purge of personal identifiers.</p>
                     <button onClick={handleOptOut} className="border border-red-300 text-red-600 hover:bg-red-50 font-medium py-2 rounded transition-colors">
                         Opt-Out & Delete Data
@@ -254,14 +291,23 @@ export default function CustomerChat() {
 
             {/* Main Chat Area */}
             <div className="w-full md:w-2/3 bg-white border rounded-lg shadow-sm flex flex-col overflow-hidden">
-                <div className="bg-blue-50 border-b p-4 flex justify-between items-center">
-                    <div>
-                        <h1 className="text-xl font-bold text-blue-900">Pharmacy AI Support</h1>
-                        <p className="text-sm text-blue-700">Powered by our local LLM model & Staff verified.</p>
+                <div className="bg-white border-b p-4 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-blue-600 p-2.5 rounded-xl shadow-blue-200 shadow-lg">
+                            <Sparkles className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-xl font-bold text-slate-800">Pharmacy AI Support</h1>
+                            <p className="text-xs text-slate-500 flex items-center gap-1">
+                                <span className="inline-block w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                                Staff verified & LLM Powered
+                            </p>
+                        </div>
                     </div>
-                    <a href="/shop" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors text-sm flex items-center gap-2">
-                        🛒 Shop Groceries
-                    </a>
+                    <Link to="/shop" className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-4 py-2 rounded-lg font-bold shadow-sm transition-all text-sm flex items-center gap-2 active:scale-95">
+                        <ShoppingBag className="w-4 h-4" />
+                        Shop Groceries
+                    </Link>
                 </div>
 
                 <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-4 bg-slate-50/50">
@@ -269,12 +315,28 @@ export default function CustomerChat() {
                         <div className="text-center text-slate-400 mt-20">Start a conversation with our virtual assistant...</div>
                     )}
                     {messages.map((m, idx) => (
-                        <div key={idx} className={`max-w-[80%] rounded-lg p-3 ${m.sender === 'Customer' ? 'bg-blue-600 text-white self-end rounded-br-none' :
-                            m.sender === 'LLM' ? 'bg-slate-200 text-slate-900 self-start rounded-bl-none' :
-                                'bg-emerald-100 border border-emerald-200 text-emerald-900 self-start rounded-bl-none shadow-sm'
+                        <div key={idx} className={`max-w-[85%] rounded-2xl p-4 shadow-sm ${m.sender === 'Customer' ? 'bg-blue-600 text-white self-end rounded-br-none' :
+                            m.sender === 'LLM' ? 'bg-white border text-slate-800 self-start rounded-bl-none' :
+                                'bg-emerald-50 border border-emerald-100 text-emerald-900 self-start rounded-bl-none shadow-md'
                             }`}>
-                            {m.sender === 'Pharmacist' && <div className="text-xs font-bold text-emerald-700 mb-1 flex items-center gap-1">⚕️ Pharmacist Connected</div>}
-                            {m.sender === 'LLM' && <div className="text-xs font-bold text-slate-500 mb-1">🤖 Virtual Assistant</div>}
+                            {m.sender === 'Pharmacist' && (
+                                <div className="text-[10px] font-bold text-emerald-700 mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
+                                    <MessageSquareHeart className="w-3.5 h-3.5" />
+                                    Pharmacist Connected
+                                </div>
+                            )}
+                            {m.sender === 'LLM' && (
+                                <div className="text-[10px] font-bold text-slate-400 mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
+                                    <Bot className="w-3.5 h-3.5" />
+                                    Virtual Assistant
+                                </div>
+                            )}
+                            {m.sender === 'Customer' && (
+                                <div className="text-[10px] font-bold text-blue-100 mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
+                                    <UserRound className="w-3.5 h-3.5" />
+                                    You
+                                </div>
+                            )}
                             <div className="whitespace-pre-wrap text-sm">{m.content}</div>
                         </div>
                     ))}
@@ -290,8 +352,9 @@ export default function CustomerChat() {
                             placeholder="Ask about medications, stock, or advice..."
                             className="flex-1 border rounded p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
-                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 rounded transition-colors">
-                            Send
+                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 rounded-xl transition-all flex items-center gap-2 active:scale-95 shadow-lg shadow-blue-100">
+                            <span>Send</span>
+                            <Send className="w-4 h-4" />
                         </button>
                     </form>
                 </div>

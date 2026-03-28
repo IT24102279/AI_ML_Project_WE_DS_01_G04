@@ -97,3 +97,11 @@ CREATE TABLE IF NOT EXISTS Delivery_Logs (
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (order_id) REFERENCES Orders(order_id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS Drivers (
+    driver_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    vehicle_info VARCHAR(255),
+    status ENUM('Active', 'Inactive') DEFAULT 'Active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
