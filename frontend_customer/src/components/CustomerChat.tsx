@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ShoppingBag, LogOut, Calendar, User, ShieldCheck, Send, Bot, UserRound, Sparkles, MessageSquareHeart } from 'lucide-react';
+import { ShoppingBag, LogOut, Calendar, User, ShieldCheck, Send, Bot, UserRound, Sparkles, MessageSquareHeart, Clock } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 interface Message {
     message_id?: number;
@@ -337,7 +338,14 @@ export default function CustomerChat() {
                                     You
                                 </div>
                             )}
-                            <div className="whitespace-pre-wrap text-sm">{m.content}</div>
+                            <div className="prose prose-sm max-w-none text-sm leading-relaxed 
+                                prose-headings:font-bold prose-headings:text-inherit 
+                                prose-p:leading-relaxed prose-p:mb-2 
+                                prose-strong:font-bold prose-strong:text-inherit
+                                prose-ul:list-disc prose-ul:pl-4 
+                                prose-li:mb-1 last:prose-p:mb-0">
+                                <ReactMarkdown>{m.content}</ReactMarkdown>
+                            </div>
                         </div>
                     ))}
                     <div ref={endOfMessagesRef} />

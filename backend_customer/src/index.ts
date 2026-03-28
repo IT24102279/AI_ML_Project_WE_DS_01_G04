@@ -4,11 +4,42 @@ import dotenv from 'dotenv';
 import pool from './db';
 import crypto from 'crypto';
 import fetch from 'node-fetch';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import fs from 'fs';
+import path from 'path';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+// Load Pharmacy Info for AI Knowledge
+let pharmacyKnowledge = "No detailed pharmacy info available.";
+try {
+    const kbPath = path.join(__dirname, '..', 'pharmacy_info.txt');
+    if (fs.existsSync(kbPath)) {
+        pharmacyKnowledge = fs.readFileSync(kbPath, 'utf8');
+    }
+} catch (e) {
+    console.error("Knowledge base load error:", e);
+}
+
+// Gemini AI Config
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    systemInstruction: `You are the helpful AI assistant for 'Colombo AI Pharmacy'. 
+    
+    BASE KNOWLEDGE (Retrievable Info):
+    ${pharmacyKnowledge}
+    
+    RULES:
+    1. NEVER recommend specific brand-name medicines or prescription drugs.
+    2. Provide general medical advice (health tips, first aid common practices).
+    3. Always be polite.
+    4. If users ask about medications, remind them you are an AI and they should consult the human pharmacist.
+    5. If they mention 'stock' or 'available', incorporate the inventory hint provided in the user prompt.`
+});
 
 app.use(cors());
 app.use(express.json());
@@ -17,7 +48,7 @@ app.use(express.json());
 async function initDB() {
     try {
         console.log('Connecting to Customer DB...');
-        
+
         try {
             await pool.query(`ALTER TABLE Customers 
                 ADD COLUMN name VARCHAR(255), 
@@ -25,8 +56,10 @@ async function initDB() {
                 ADD COLUMN address TEXT, 
                 ADD COLUMN password_hash VARCHAR(255), 
                 ADD COLUMN role ENUM('customer', 'admin') DEFAULT 'customer'`);
-        } catch(e) {} // Ignores duplicate column error if already exists
+        } catch (e) { } // Ignores duplicate column error if already exists
 
+        // Purge restricted medicine from seed
+        await pool.query(`DELETE FROM Public_Products WHERE product_id = 999`);
         const adminHash = crypto.createHash('sha256').update('admin123').digest('hex');
         await pool.query(`INSERT IGNORE INTO Customers (id, name, role, password_hash) VALUES (999, 'Admin', 'admin', ?)`, [adminHash]);
         await pool.query(`INSERT IGNORE INTO Customers (id, anonymized) VALUES (1, FALSE)`);
@@ -34,10 +67,9 @@ async function initDB() {
 
         // E-commerce Mock Data
         await pool.query(`INSERT IGNORE INTO Public_Products (product_id, name, price, category, image_url, in_stock) VALUES 
-            (101, 'Organic Milk 1L', 2.50, 'Groceries', 'https://via.placeholder.com/150', TRUE),
-            (102, 'Whole Wheat Bread', 1.80, 'Groceries', 'https://via.placeholder.com/150', TRUE),
-            (103, 'Band-Aids 50pk', 4.00, 'First Aid', 'https://via.placeholder.com/150', TRUE),
-            (999, 'Amoxicillin 500mg', 12.00, 'Medicine', 'https://via.placeholder.com/150', TRUE)`);
+            (101, 'Organic Milk 1L', 153.50, 'Groceries', 'https://images.pexels.com/photos/7451957/pexels-photo-7451957.jpeg', TRUE),
+            (102, 'Whole Wheat Bread', 180.00, 'Groceries', 'https://images.pexels.com/photos/8053709/pexels-photo-8053709.jpeg', TRUE),
+            (103, 'Plasters 50pk', 250.00, 'First Aid', 'https://images.pexels.com/photos/7722833/pexels-photo-7722833.jpeg', TRUE)`);
 
         // Mock Drivers
         await pool.query(`CREATE TABLE IF NOT EXISTS Drivers (
@@ -110,8 +142,27 @@ app.post('/api/chat/send', async (req, res) => {
             return res.status(429).json({ error: 'Session rate limit exceeded (50 messages max).' });
         }
 
+        // Ensure customer exists (create if missing during dev/reset if needed, or error out)
+        const [customers]: any = await pool.query(`SELECT id FROM Customers WHERE id = ?`, [customer_id]);
+        if (customers.length === 0) {
+            // Self-healing: if customer ID 1 is expected but missing, recreate it (common after dev resets)
+            if (customer_id === 1) {
+                await pool.query(`INSERT INTO Customers (id, anonymized) VALUES (1, FALSE)`);
+            } else {
+                return res.status(401).json({ error: 'Customer session invalid. Please log out and log in again.' });
+            }
+        }
+
         // Ensure session exists
-        await pool.query(`INSERT IGNORE INTO Chat_Sessions (id, customer_id, status) VALUES (?, ?, 'Active')`, [session_id, customer_id]);
+        try {
+            console.log(`Ensuring session ${session_id} for customer ${customer_id}`);
+            await pool.query(`INSERT INTO Chat_Sessions (id, customer_id, status) 
+                             VALUES (?, ?, 'Active') 
+                             ON DUPLICATE KEY UPDATE status=status`, [session_id, customer_id]);
+        } catch (err: any) {
+            console.error("Session Creation Error:", err.message);
+            return res.status(500).json({ error: `Failed to initialize chat session: ${err.message}` });
+        }
 
         // Insert User Message
         await pool.query(
@@ -119,25 +170,47 @@ app.post('/api/chat/send', async (req, res) => {
             [session_id, content]
         );
 
-        let llmReply = "I cannot diagnose or recommend treatments. Please book a consultation with our pharmacist.";
+        // Get Session History for Context
+        const [history]: any = await pool.query(
+            `SELECT sender, content FROM Chat_Messages WHERE session_id = ? ORDER BY id ASC LIMIT 10`,
+            [session_id]
+        );
 
-        // Mock Function Calling / Inventory Check
-        if (content.toLowerCase().includes('stock') || content.toLowerCase().includes('have') || content.toLowerCase().includes('available')) {
-            try {
-                // Forward the query to the POS inventory semantic check if needed, or just mock it.
-                // We will do a generic cross-api mock GET here to the main POS backend.
-                const response = await fetch(`http://localhost:3000/api/inventory/safe-check?q=${encodeURIComponent(content)}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data && data.in_stock) {
-                        llmReply += ` However, I have checked our inventory and yes, that item appears to be in stock.`;
+        let llmReply = "I'm having trouble connecting to my brain right now.";
+
+        try {
+            const chat = model.startChat({
+                history: history.map((msg: any) => ({
+                    role: msg.sender === 'Customer' ? 'user' : 'model',
+                    parts: [{ text: msg.content }]
+                })),
+                generationConfig: {
+                    maxOutputTokens: 250,
+                },
+            });
+
+            let promptExtra = "";
+            // Keep existing Inventory Check logic
+            if (content.toLowerCase().includes('stock') || content.toLowerCase().includes('have') || content.toLowerCase().includes('available')) {
+                try {
+                    const response = await fetch(`http://localhost:3000/api/inventory/safe-check?q=${encodeURIComponent(content)}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data && data.in_stock) {
+                            promptExtra = " (Note: Our local check shows this specific item IS currently in stock at the Colombo branch)";
+                        } else {
+                            promptExtra = " (Note: Our local check shows this item is currently out of stock)";
+                        }
                     }
-                } else {
-                    llmReply += ` (Inventory system unreachable)`;
-                }
-            } catch (e) {
-                llmReply += ` (Failed to check live stock)`;
+                } catch (e) { }
             }
+
+            const result = await chat.sendMessage(content + promptExtra);
+            const response = await result.response;
+            llmReply = response.text();
+        } catch (e: any) {
+            console.error("Gemini Error:", e.message);
+            llmReply = "I cannot diagnose or recommend treatments. Please book a consultation with our pharmacist.";
         }
 
         // Insert LLM Message
@@ -504,7 +577,7 @@ app.put('/api/orders/:id/assign-driver', async (req, res) => {
                 AND o.status = 'Handed to Driver'
             )
         `);
-        if (activeDrivers.length === 0) return res.status(400).json({error: "No active drivers available"});
+        if (activeDrivers.length === 0) return res.status(400).json({ error: "No active drivers available" });
 
         const driverIds = activeDrivers.map((d: any) => d.driver_id);
         const [driverLoads]: any = await pool.query(`
@@ -596,7 +669,7 @@ app.patch('/api/admin/orders/:id/status', async (req, res) => {
     try {
         const orderId = req.params.id;
         const { status } = req.body;
-        
+
         const [orders]: any = await pool.query(`SELECT driver_id FROM Orders WHERE order_id = ?`, [orderId]);
         const driverId = (orders.length > 0 && orders[0].driver_id) ? orders[0].driver_id : 44;
 

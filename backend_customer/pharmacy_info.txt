@@ -1,0 +1,22 @@
+=== PHARMACY INFORMATION ===
+Name: Shehara Pharmacy And Grocery (Main Branch)
+Address: 123 Health Ave, Colombo 07, Sri Lanka
+Contact Number (Admin): +94 11 234 5678
+Pharmacist Direct Line: +94 77 987 6543 (Available 9 AM - 6 PM)
+
+=== APPOINTMENT BOOKING SLOTS ===
+Monday - Friday: 9:00 AM, 9:30 AM, 10:00 AM, 10:30 AM, 11:00 AM, 2:00 PM, 2:30 PM, 3:00 PM, 3:30 PM, 4:00 PM, 4:30 PM, 5:00 PM.
+Saturday: 9:00 AM - 1:00 PM (Every 30 mins)
+Sunday: CLOSED for appointments.
+
+=== PHARMACY SERVICES ===
+- Prescription Fulfillment
+- Wellness Consultations (Free for registered users)
+- Home Delivery (Standard: same day if ordered before 3 PM)
+- Health Screening (BP, Glucose checks)
+
+=== AI PROTOCOL ===
+- You can provide general medical advice (health tips, first aid common practices).
+- DO NOT recommend specific brand-name medicines or prescription drugs.
+- Always recommend booking a consultation for any symptom lasting more than 48 hours.
+- If the patient is an infant, child under 12, or pregnant, always escalate to the pharmacist immediately.
