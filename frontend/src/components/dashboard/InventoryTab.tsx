@@ -209,15 +209,15 @@ export default function InventoryTab({ currency = '$' }: { currency?: string }) 
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Current Stock</Label>
-                                        <Input type="number" required value={productForm.current_stock} onChange={e => setProductForm({ ...productForm, current_stock: e.target.value as any })} />
+                                        <Input type="number" min="0" required value={productForm.current_stock} onChange={e => setProductForm({ ...productForm, current_stock: e.target.value as any })} />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Unit Selling Price ({currency})</Label>
-                                        <Input type="number" step="0.01" required value={productForm.selling_price} onChange={e => setProductForm({ ...productForm, selling_price: e.target.value as any })} />
+                                        <Input type="number" min="0" step="0.01" required value={productForm.selling_price} onChange={e => setProductForm({ ...productForm, selling_price: e.target.value as any })} />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Reorder Threshold</Label>
-                                        <Input type="number" required value={productForm.reorder_threshold} onChange={e => setProductForm({ ...productForm, reorder_threshold: e.target.value as any })} />
+                                        <Input type="number" min="0" required value={productForm.reorder_threshold} onChange={e => setProductForm({ ...productForm, reorder_threshold: e.target.value as any })} />
                                     </div>
                                     <Button type="submit" className="w-full">Save Product</Button>
                                 </form>
@@ -294,7 +294,7 @@ export default function InventoryTab({ currency = '$' }: { currency?: string }) 
                                     </div>
                                     <div className="space-y-1">
                                         <Label>Expiry Date (YYYY-MM-DD)</Label>
-                                        <Input required type="date" value={batchForm.expiry_date} onChange={e => setBatchForm({ ...batchForm, expiry_date: e.target.value })} />
+                                        <Input required type="date" min={new Date().toISOString().split("T")[0]} value={batchForm.expiry_date} onChange={e => setBatchForm({ ...batchForm, expiry_date: e.target.value })} />
                                     </div>
                                     <div className="space-y-1">
                                         <Label>Location</Label>
@@ -304,22 +304,22 @@ export default function InventoryTab({ currency = '$' }: { currency?: string }) 
                                         <>
                                             <div className="space-y-1">
                                                 <Label>Purchased Quantity</Label>
-                                                <Input type="number" required value={batchForm.purchased_quantity} onChange={e => setBatchForm({ ...batchForm, purchased_quantity: e.target.value as any })} />
+                                                <Input type="number" min="0" required value={batchForm.purchased_quantity} onChange={e => setBatchForm({ ...batchForm, purchased_quantity: e.target.value as any })} />
                                             </div>
                                             <div className="space-y-1">
                                                 <Label>Bonus Quantity</Label>
-                                                <Input type="number" value={batchForm.bonus_quantity} onChange={e => setBatchForm({ ...batchForm, bonus_quantity: e.target.value as any })} />
+                                                <Input type="number" min="0" value={batchForm.bonus_quantity} onChange={e => setBatchForm({ ...batchForm, bonus_quantity: e.target.value as any })} />
                                             </div>
                                         </>
                                     ) : (
                                         <div className="space-y-1">
                                             <Label>Current Stock Level</Label>
-                                            <Input type="number" required value={batchForm.current_stock_level} onChange={e => setBatchForm({ ...batchForm, current_stock_level: e.target.value as any })} />
+                                            <Input type="number" min="0" required value={batchForm.current_stock_level} onChange={e => setBatchForm({ ...batchForm, current_stock_level: e.target.value as any })} />
                                         </div>
                                     )}
                                     <div className="space-y-1">
                                         <Label>Unit Cost ({currency})</Label>
-                                        <Input type="number" step="0.01" required value={batchForm.unit_cost} onChange={e => setBatchForm({ ...batchForm, unit_cost: e.target.value as any })} />
+                                        <Input type="number" min="0" step="0.01" required value={batchForm.unit_cost} onChange={e => setBatchForm({ ...batchForm, unit_cost: e.target.value as any })} />
                                     </div>
 
                                     <Button type="submit" className="w-full mt-2">Save Batch</Button>

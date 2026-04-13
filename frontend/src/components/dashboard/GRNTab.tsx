@@ -370,7 +370,7 @@ export default function GRNTab({ currency = '$' }: { currency?: string }) {
                                             <Input value={row.batch_number} onChange={e => updateRow(row.id, "batch_number", e.target.value)} placeholder="B001" />
                                         </TableCell>
                                         <TableCell>
-                                            <Input type="date" value={row.expiry_date} onChange={e => updateRow(row.id, "expiry_date", e.target.value)} />
+                                            <Input type="date" min={new Date().toISOString().split("T")[0]} value={row.expiry_date} onChange={e => updateRow(row.id, "expiry_date", e.target.value)} />
                                         </TableCell>
                                         <TableCell>
                                             <Input value={row.location} onChange={e => updateRow(row.id, "location", e.target.value)} placeholder="Shelf A" />

@@ -96,7 +96,7 @@ export default function SuppliersTab() {
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="name">Name</Label>
-                                <Input id="name" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                                <Input id="name" required pattern="^[A-Za-z\s]+$" title="Name can only contain alphabetic characters and spaces" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="email">Email</Label>
@@ -104,7 +104,7 @@ export default function SuppliersTab() {
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="phone">Phone</Label>
-                                <Input id="phone" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+                                <Input id="phone" type="tel" pattern="[0-9\s\-\+]*" title="Please enter a valid phone number" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
                             </div>
                             <Button type="submit" className="w-full">Save Supplier</Button>
                         </form>
