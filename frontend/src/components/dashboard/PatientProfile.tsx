@@ -147,11 +147,11 @@ export default function PatientProfile({ patientId, isOpen, onClose, currency = 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <Label>Full Name *</Label>
-                                        <Input required value={editForm.name} onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))} />
+                                        <Input value={editForm.name} pattern="^[A-Za-z\s]+$" title="Name can only contain alphabetic characters and spaces" onChange={e => setEditForm({ ...editForm, name: e.target.value })} required />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Phone *</Label>
-                                        <Input required value={editForm.phone} onChange={e => setEditForm(prev => ({ ...prev, phone: e.target.value }))} />
+                                        <Input required type="tel" pattern="[0-9\+\-\s]+" value={editForm.phone} onChange={e => setEditForm(prev => ({ ...prev, phone: e.target.value }))} />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Birth Year *</Label>

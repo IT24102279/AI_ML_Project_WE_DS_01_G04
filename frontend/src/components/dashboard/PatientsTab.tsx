@@ -62,6 +62,8 @@ export default function PatientsTab({ currency = '$' }: { currency?: string }) {
             <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border">
                 <div className="flex space-x-2 flex-grow max-w-md">
                     <Input
+                        type="tel"
+                        pattern="[0-9\+\-\s]+"
                         placeholder="Search patient by exact phone number..."
                         value={searchPhone}
                         onChange={(e) => setSearchPhone(e.target.value)}
@@ -81,11 +83,11 @@ export default function PatientsTab({ currency = '$' }: { currency?: string }) {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label>Full Name *</Label>
-                                    <Input required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                                    <Input required pattern="^[A-Za-z\s]+$" title="Name can only contain alphabetic characters and spaces" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Phone Number *</Label>
-                                    <Input required value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+                                    <Input type="tel" pattern="[0-9\+\-\s]+" required value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
