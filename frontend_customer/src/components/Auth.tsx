@@ -73,6 +73,8 @@ export default function Auth() {
                             <input
                                 type="text"
                                 required
+                                pattern="^[A-Za-z\s]+$"
+                                title="Name can only contain alphabetic characters and spaces"
                                 value={name}
                                 onChange={e => setName(e.target.value)}
                                 className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
@@ -112,6 +114,7 @@ export default function Auth() {
                         <input
                             type="password"
                             required
+                            minLength={6}
                             value={password}
                             onChange={e => setPassword(e.target.value)}
                             className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all"

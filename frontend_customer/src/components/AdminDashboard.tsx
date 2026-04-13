@@ -456,6 +456,7 @@ export default function AdminDashboard() {
                             <input
                                 type="number"
                                 step="0.01"
+                                min="0"
                                 placeholder="Price"
                                 className="border rounded px-3 py-2 w-32"
                                 value={editingProduct ? editingProduct.price : newProduct.price}
@@ -541,6 +542,8 @@ export default function AdminDashboard() {
                                 type="text"
                                 placeholder="Driver Name"
                                 className="border rounded px-3 py-2 flex-1"
+                                pattern="^[A-Za-z\s]+$"
+                                title="Name can only contain alphabetic characters and spaces"
                                 value={editingDriver ? editingDriver.name : newDriver.name}
                                 onChange={(e) => editingDriver ? setEditingDriver({ ...editingDriver, name: e.target.value }) : setNewDriver({ ...newDriver, name: e.target.value })}
                                 required

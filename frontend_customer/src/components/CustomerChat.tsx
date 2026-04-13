@@ -198,6 +198,7 @@ export default function CustomerChat() {
                                 <input
                                     type="date"
                                     required
+                                    min={new Date().toISOString().split("T")[0]}
                                     value={bookDate}
                                     onChange={e => setBookDate(e.target.value)}
                                     className="flex-1 border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
