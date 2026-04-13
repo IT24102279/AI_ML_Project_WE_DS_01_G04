@@ -258,6 +258,15 @@ app.post('/api/appointments/book', async (req, res) => {
             return res.status(400).json({ error: 'Invalid date format' });
         }
 
+        // Check for clashing
+        const [existing]: any = await pool.query(
+            `SELECT id FROM Appointments WHERE pharmacist_id = ? AND scheduled_time = ? AND status = 'Confirmed'`,
+            [pharmacist_id, formattedTime]
+        );
+        if (existing.length > 0) {
+            return res.status(409).json({ error: 'This time slot is already booked. Please choose another time.' });
+        }
+
         const [result]: any = await pool.query(
             `INSERT INTO Appointments (customer_id, pharmacist_id, scheduled_time, symptoms_note, status) VALUES (?, ?, ?, ?, 'Confirmed')`,
             [customer_id, pharmacist_id, formattedTime, symptoms_note || '']
@@ -303,6 +312,16 @@ app.put('/api/appointments/:id', async (req, res) => {
         } catch (e) {
             return res.status(400).json({ error: 'Invalid date format' });
         }
+
+        // Check for clashing (excluding current appointment)
+        const [existing]: any = await pool.query(
+            `SELECT id FROM Appointments WHERE pharmacist_id = 1 AND scheduled_time = ? AND status = 'Confirmed' AND id != ?`,
+            [formattedTime, req.params.id]
+        );
+        if (existing.length > 0) {
+            return res.status(409).json({ error: 'This time slot is already booked. Please choose another time.' });
+        }
+
         await pool.query(
             `UPDATE Appointments SET scheduled_time = ?, symptoms_note = ? WHERE id = ?`,
             [formattedTime, symptoms_note || '', req.params.id]

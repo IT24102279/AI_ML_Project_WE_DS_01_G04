@@ -86,8 +86,14 @@ export default function CustomerChat() {
     const [bookNote, setBookNote] = useState('');
     const [myAppointments, setMyAppointments] = useState<any[]>([]);
     const [editingAppointmentId, setEditingAppointmentId] = useState<number | null>(null);
+    const [allAppointments, setAllAppointments] = useState<any[]>([]);
 
-    const fetchMyAppointments = async () => {
+    const fetchAllAppointments = async () => {
+        try {
+            const res = await fetch(`http://localhost:4000/api/admin/appointments`);
+            if (res.ok) setAllAppointments(await res.json());
+        } catch (e) { console.error(e); }
+    };
         try {
             const res = await fetch(`http://localhost:4000/api/customers/${customerId}/appointments`);
             if (res.ok) setMyAppointments(await res.json());
@@ -96,6 +102,7 @@ export default function CustomerChat() {
 
     useEffect(() => {
         fetchMyAppointments();
+        fetchAllAppointments();
     }, [customerId]);
 
     const handleEditClick = (app: any) => {
@@ -149,6 +156,10 @@ export default function CustomerChat() {
                 setBookNote('');
                 setEditingAppointmentId(null);
                 fetchMyAppointments();
+                fetchAllAppointments();
+            } else if (res.status === 409) {
+                const data = await res.json();
+                alert(data.error);
             } else {
                 alert("Failed to book appointment.");
             }
@@ -214,9 +225,25 @@ export default function CustomerChat() {
                                         const hour = Math.floor(i / 2) + 9;
                                         const minute = (i % 2) * 30;
                                         const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                                        
+                                        // Check if this slot is already taken on the selected date
+                                        const isTaken = allAppointments.some(app => {
+                                            if (app.status !== 'Confirmed') return false;
+                                            if (editingAppointmentId && app.id === editingAppointmentId) return false;
+                                            
+                                            const appDate = new Date(app.scheduled_time);
+                                            const aY = appDate.getFullYear();
+                                            const aM = String(appDate.getMonth() + 1).padStart(2, '0');
+                                            const aD = String(appDate.getDate()).padStart(2, '0');
+                                            const ah = String(appDate.getHours()).padStart(2, '0');
+                                            const am = String(appDate.getMinutes()).padStart(2, '0');
+                                            
+                                            return `${aY}-${aM}-${aD}` === bookDate && `${ah}:${am}` === timeStr;
+                                        });
+
                                         return (
-                                            <option key={timeStr} value={timeStr}>
-                                                {hour > 12 ? hour - 12 : hour}:{minute.toString().padStart(2, '0')} {hour >= 12 ? 'PM' : 'AM'}
+                                            <option key={timeStr} value={timeStr} disabled={isTaken}>
+                                                {hour > 12 ? hour - 12 : hour}:{minute.toString().padStart(2, '0')} {hour >= 12 ? 'PM' : 'AM'} {isTaken ? '(Booked)' : ''}
                                             </option>
                                         );
                                     })}
