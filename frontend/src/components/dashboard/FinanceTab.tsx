@@ -459,15 +459,15 @@ export default function FinanceTab({
                     <form onSubmit={handleSalaryUpdate} className="space-y-4 mt-4">
                         <div className="space-y-2">
                             <Label>Base Monthly Salary</Label>
-                            <Input type="number" step="0.01" value={salaryForm.base_salary} onChange={e => setSalaryForm({ ...salaryForm, base_salary: e.target.value })} />
+                            <Input type="number" step="0.01" min="0" value={salaryForm.base_salary} onChange={e => setSalaryForm({ ...salaryForm, base_salary: e.target.value })} />
                         </div>
                         <div className="space-y-2">
                             <Label>Hourly Rate (Optional)</Label>
-                            <Input type="number" step="0.01" value={salaryForm.hourly_rate} onChange={e => setSalaryForm({ ...salaryForm, hourly_rate: e.target.value })} />
+                            <Input type="number" step="0.01" min="0" value={salaryForm.hourly_rate} onChange={e => setSalaryForm({ ...salaryForm, hourly_rate: e.target.value })} />
                         </div>
                         <div className="space-y-2">
                             <Label>Standard Deductions (Taxes/EPF)</Label>
-                            <Input type="number" step="0.01" value={salaryForm.standard_deductions} onChange={e => setSalaryForm({ ...salaryForm, standard_deductions: e.target.value })} />
+                            <Input type="number" step="0.01" min="0" value={salaryForm.standard_deductions} onChange={e => setSalaryForm({ ...salaryForm, standard_deductions: e.target.value })} />
                         </div>
                         <Button type="submit" className="w-full">Update Configuration</Button>
                     </form>
@@ -493,11 +493,11 @@ export default function FinanceTab({
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>Gross Pay</Label>
-                                <Input type="number" value={payrollForm.gross_pay} onChange={e => setPayrollForm({ ...payrollForm, gross_pay: e.target.value })} />
+                                <Input type="number" step="0.01" min="0" value={payrollForm.gross_pay} onChange={e => setPayrollForm({ ...payrollForm, gross_pay: e.target.value })} />
                             </div>
                             <div className="space-y-2">
                                 <Label>Deductions</Label>
-                                <Input type="number" value={payrollForm.deductions} onChange={e => setPayrollForm({ ...payrollForm, deductions: e.target.value })} />
+                                <Input type="number" step="0.01" min="0" value={payrollForm.deductions} onChange={e => setPayrollForm({ ...payrollForm, deductions: e.target.value })} />
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
