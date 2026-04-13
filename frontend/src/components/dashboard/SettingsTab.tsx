@@ -81,9 +81,16 @@ export default function SettingsTab() {
                     <Label htmlFor="pharmacy_phone">Phone Number</Label>
                     <Input
                         id="pharmacy_phone"
+                        type="tel"
+                        pattern="[0-9]{10}"
+                        maxLength={10}
+                        title="Phone number must be exactly 10 digits"
                         value={settings.pharmacy_phone}
-                        onChange={(e) => setSettings({ ...settings, pharmacy_phone: e.target.value })}
-                        placeholder="E.g. +1 555-123-4567"
+                        onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '');
+                            setSettings({ ...settings, pharmacy_phone: val });
+                        }}
+                        placeholder="E.g. 0771234567"
                     />
                 </div>
 

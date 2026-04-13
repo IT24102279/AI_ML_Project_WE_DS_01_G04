@@ -117,7 +117,8 @@ export default function AuditLogs() {
                     <div className="relative">
                         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
-                            type="text"
+                            type="number"
+                            min="1"
                             placeholder="Search ID..."
                             value={empId}
                             onChange={(e) => setEmpId(e.target.value)}
@@ -142,6 +143,7 @@ export default function AuditLogs() {
                     <label className="text-xs font-semibold text-slate-500 uppercase">Start Date</label>
                     <input
                         type="date"
+                        max={endDate || undefined}
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -151,6 +153,7 @@ export default function AuditLogs() {
                     <label className="text-xs font-semibold text-slate-500 uppercase">End Date</label>
                     <input
                         type="date"
+                        min={startDate || undefined}
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

@@ -46,7 +46,7 @@ export default function Register() {
                     <CardContent className="space-y-4">
                         <div className="space-y-2">
                             <label htmlFor="name">Full Name</label>
-                            <Input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+                            <Input id="name" type="text" pattern="^[A-Za-z\s]+$" title="Name can only contain alphabetic characters and spaces" value={name} onChange={(e) => setName(e.target.value)} required />
                         </div>
                         <div className="space-y-2">
                             <label htmlFor="email">Email</label>
@@ -54,7 +54,7 @@ export default function Register() {
                         </div>
                         <div className="space-y-2">
                             <label htmlFor="password">Password</label>
-                            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                            <Input id="password" type="password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} required />
                         </div>
                         <div className="space-y-2">
                             <label>Role</label>

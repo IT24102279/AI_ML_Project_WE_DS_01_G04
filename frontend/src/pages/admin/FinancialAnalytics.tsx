@@ -76,6 +76,7 @@ export default function FinancialAnalytics({ currency = '$' }: { currency?: stri
                         <CalendarIcon className="w-4 h-4 text-slate-500" />
                         <input
                             type="date"
+                            max={endDate || undefined}
                             className="bg-transparent text-sm text-slate-700 outline-none"
                             value={startDate}
                             onChange={e => setStartDate(e.target.value)}
@@ -86,6 +87,8 @@ export default function FinancialAnalytics({ currency = '$' }: { currency?: stri
                         <CalendarIcon className="w-4 h-4 text-slate-500" />
                         <input
                             type="date"
+                            min={startDate || undefined}
+                            max={new Date().toISOString().split('T')[0]} // shouldn't pick future date for analytics
                             className="bg-transparent text-sm text-slate-700 outline-none"
                             value={endDate}
                             onChange={e => setEndDate(e.target.value)}
