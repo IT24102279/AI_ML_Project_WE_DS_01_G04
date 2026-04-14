@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 
 export default function DriverApp() {
     const [orders, setOrders] = useState<any[]>([]);
@@ -10,14 +11,14 @@ export default function DriverApp() {
 
     const fetchAssignedOrders = async () => {
         try {
-            const res = await fetch(`http://localhost:4000/api/orders?driver_id=${driverId}`);
+            const res = await fetch(`${API_BASE_URL}/api/orders?driver_id=${driverId}`);
             if (res.ok) setOrders(await res.json());
         } catch (e) { console.error(e); }
     };
 
     const updateStatus = async (orderId: number, nextStatus: string) => {
         try {
-            await fetch(`http://localhost:4000/api/orders/${orderId}/status`, {
+            await fetch(`${API_BASE_URL}/api/orders/${orderId}/status`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ driver_id: driverId, status: nextStatus })

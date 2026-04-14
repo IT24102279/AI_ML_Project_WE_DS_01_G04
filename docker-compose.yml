@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: pharmacy_pos
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+  backend-main:
+    build: ./backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=mysql://root:root@db:3306/pharmacy_pos
+      - PORT=5000
+    depends_on:
+      - db
+
+  backend-customer:
+    build: ./backend_customer
+    restart: always
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=root
+      - DB_NAME=pharmacy_customer_db
+    depends_on:
+      - db
+
+  frontend-main:
+    build:
+      context: ./frontend
+      args:
+        - VITE_API_URL=/api
+    ports:
+      - "8080:80"
+    restart: always
+
+  frontend-customer:
+    build:
+      context: ./frontend_customer
+      args:
+        - VITE_API_URL=/api
+    ports:
+      - "8081:80"
+    restart: always
+
+  ocr-service:
+    build: ./ai_OCR_Model
+    restart: always
+    ports:
+      - "5005:5005"
+    environment:
+      - NODE_BACKEND_URL=http://backend-main:5000
+
+volumes:
+  db_data:

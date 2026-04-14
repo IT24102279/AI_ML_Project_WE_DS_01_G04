@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ShoppingBag, LogOut, Calendar, User, ShieldCheck, Send, Bot, UserRound, Sparkles, MessageSquareHeart, Clock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { API_BASE_URL } from '../config';
 
 interface Message {
     message_id?: number;
@@ -36,7 +37,7 @@ export default function CustomerChat() {
     useEffect(() => {
         const fetchMsgs = async () => {
             try {
-                const res = await fetch(`http://localhost:4000/api/chat/sessions/${sessionId}/messages`);
+                const res = await fetch(`${API_BASE_URL}/api/chat/sessions/${sessionId}/messages`);
                 if (res.ok) {
                     const data = await res.json();
                     if (data.length > messages.length) {
@@ -61,7 +62,7 @@ export default function CustomerChat() {
         setMessages(prev => [...prev, { sender: 'Customer', content: userMsg }]);
 
         try {
-            const res = await fetch('http://localhost:4000/api/chat/send', {
+            const res = await fetch(API_BASE_URL + '/api/chat/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -90,13 +91,13 @@ export default function CustomerChat() {
 
     const fetchAllAppointments = async () => {
         try {
-            const res = await fetch(`http://localhost:4000/api/admin/appointments`);
+            const res = await fetch(`${API_BASE_URL}/api/admin/appointments`);
             if (res.ok) setAllAppointments(await res.json());
         } catch (e) { console.error(e); }
     };
     const fetchMyAppointments = async () => {
         try {
-            const res = await fetch(`http://localhost:4000/api/customers/${customerId}/appointments`);
+            const res = await fetch(`${API_BASE_URL}/api/customers/${customerId}/appointments`);
             if (res.ok) setMyAppointments(await res.json());
         } catch (e) { console.error(e); }
     };
@@ -127,7 +128,7 @@ export default function CustomerChat() {
     const handleDeleteAppointment = async (id: number) => {
         if (!confirm('Cancel this appointment?')) return;
         try {
-            await fetch(`http://localhost:4000/api/appointments/${id}`, { method: 'DELETE' });
+            await fetch(`${API_BASE_URL}/api/appointments/${id}`, { method: 'DELETE' });
             fetchMyAppointments();
         } catch (e) { console.error(e); }
     };
@@ -136,8 +137,8 @@ export default function CustomerChat() {
         e.preventDefault();
         try {
             const url = editingAppointmentId
-                ? `http://localhost:4000/api/appointments/${editingAppointmentId}`
-                : 'http://localhost:4000/api/appointments/book';
+                ? `${API_BASE_URL}/api/appointments/${editingAppointmentId}`
+                : API_BASE_URL + '/api/appointments/book';
 
             const method = editingAppointmentId ? 'PUT' : 'POST';
 
@@ -172,7 +173,7 @@ export default function CustomerChat() {
     const handleOptOut = async () => {
         if (!confirm('This action will permanently purge your identifiable data. Proceed?')) return;
         try {
-            await fetch(`http://localhost:4000/api/customers/${customerId}/opt-out`, { method: 'DELETE' });
+            await fetch(`${API_BASE_URL}/api/customers/${customerId}/opt-out`, { method: 'DELETE' });
             alert("Account anonymized.");
             window.location.reload();
         } catch (e) { console.error(e); }

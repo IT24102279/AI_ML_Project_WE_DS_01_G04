@@ -14,6 +14,7 @@ import {
     Bot,
     User
 } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 export default function AdminDashboard() {
     const navigate = useNavigate();
@@ -49,7 +50,7 @@ export default function AdminDashboard() {
         if (!selectedSession) return;
         const fetchMsgs = async () => {
             try {
-                const res = await fetch(`http://localhost:4000/api/admin/chat-sessions/${selectedSession}/messages`);
+                const res = await fetch(`${API_BASE_URL}/api/admin/chat-sessions/${selectedSession}/messages`);
                 if (res.ok) {
                     const data = await res.json();
                     setChatMessages(data);
@@ -63,35 +64,35 @@ export default function AdminDashboard() {
 
     const fetchSessions = async () => {
         try {
-            const res = await fetch('http://localhost:4000/api/admin/chat-sessions');
+            const res = await fetch(API_BASE_URL + '/api/admin/chat-sessions');
             if (res.ok) setSessions(await res.json());
         } catch (e) { console.error(e); }
     };
 
     const fetchAppointments = async () => {
         try {
-            const res = await fetch('http://localhost:4000/api/admin/appointments');
+            const res = await fetch(API_BASE_URL + '/api/admin/appointments');
             if (res.ok) setAppointments(await res.json());
         } catch (e) { console.error(e); }
     };
 
     const fetchOrders = async () => {
         try {
-            const res = await fetch('http://localhost:4000/api/orders');
+            const res = await fetch(API_BASE_URL + '/api/orders');
             if (res.ok) setOrders(await res.json());
         } catch (e) { console.error(e); }
     };
 
     const fetchProducts = async () => {
         try {
-            const res = await fetch('http://localhost:4000/api/admin/products');
+            const res = await fetch(API_BASE_URL + '/api/admin/products');
             if (res.ok) setProducts(await res.json());
         } catch (e) { console.error(e); }
     };
 
     const fetchDrivers = async () => {
         try {
-            const res = await fetch('http://localhost:4000/api/admin/drivers');
+            const res = await fetch(API_BASE_URL + '/api/admin/drivers');
             if (res.ok) setDrivers(await res.json());
         } catch (e) { console.error(e); }
     };
@@ -99,7 +100,7 @@ export default function AdminDashboard() {
     const handleCreateProduct = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await fetch('http://localhost:4000/api/admin/products', {
+            await fetch(API_BASE_URL + '/api/admin/products', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newProduct)
@@ -112,7 +113,7 @@ export default function AdminDashboard() {
     const handleUpdateProduct = async () => {
         if (!editingProduct) return;
         try {
-            await fetch(`http://localhost:4000/api/admin/products/${editingProduct.product_id}`, {
+            await fetch(`${API_BASE_URL}/api/admin/products/${editingProduct.product_id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(editingProduct)
@@ -125,14 +126,14 @@ export default function AdminDashboard() {
     const handleDeleteProduct = async (id: number) => {
         if (!window.confirm('Delete this product?')) return;
         try {
-            await fetch(`http://localhost:4000/api/admin/products/${id}`, { method: 'DELETE' });
+            await fetch(`${API_BASE_URL}/api/admin/products/${id}`, { method: 'DELETE' });
             fetchProducts();
         } catch (e) { console.error(e); }
     };
 
     const smartAssignDriver = async (orderId: number) => {
         try {
-            const res = await fetch(`http://localhost:4000/api/orders/${orderId}/assign-driver`, { method: 'PUT' });
+            const res = await fetch(`${API_BASE_URL}/api/orders/${orderId}/assign-driver`, { method: 'PUT' });
             if (!res.ok) alert("Failed. No active or available drivers right now.");
             fetchOrders();
         } catch (e) { console.error(e); }
@@ -140,7 +141,7 @@ export default function AdminDashboard() {
 
     const manualAssignDriver = async (orderId: number, driverId: number) => {
         try {
-            await fetch(`http://localhost:4000/api/admin/orders/${orderId}/assign-driver`, { 
+            await fetch(`${API_BASE_URL}/api/admin/orders/${orderId}/assign-driver`, { 
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ driver_id: driverId })
@@ -152,7 +153,7 @@ export default function AdminDashboard() {
     const handleCreateDriver = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await fetch('http://localhost:4000/api/admin/drivers', {
+            await fetch(API_BASE_URL + '/api/admin/drivers', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newDriver)
@@ -165,7 +166,7 @@ export default function AdminDashboard() {
     const handleUpdateDriver = async () => {
         if (!editingDriver) return;
         try {
-            await fetch(`http://localhost:4000/api/admin/drivers/${editingDriver.driver_id}`, {
+            await fetch(`${API_BASE_URL}/api/admin/drivers/${editingDriver.driver_id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(editingDriver)
@@ -178,14 +179,14 @@ export default function AdminDashboard() {
     const handleDeleteDriver = async (id: number) => {
         if (!window.confirm('Delete this driver?')) return;
         try {
-            await fetch(`http://localhost:4000/api/admin/drivers/${id}`, { method: 'DELETE' });
+            await fetch(`${API_BASE_URL}/api/admin/drivers/${id}`, { method: 'DELETE' });
             fetchDrivers();
         } catch (e) { console.error(e); }
     };
 
     const handleUpdateAppointmentStatus = async (id: number, status: string) => {
         try {
-            await fetch(`http://localhost:4000/api/admin/appointments/${id}/status`, {
+            await fetch(`${API_BASE_URL}/api/admin/appointments/${id}/status`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status })
@@ -197,14 +198,14 @@ export default function AdminDashboard() {
     const handleDeleteAppointment = async (id: number) => {
         if (!window.confirm('Delete this appointment?')) return;
         try {
-            await fetch(`http://localhost:4000/api/appointments/${id}`, { method: 'DELETE' });
+            await fetch(`${API_BASE_URL}/api/appointments/${id}`, { method: 'DELETE' });
             fetchAppointments();
         } catch (e) { console.error(e); }
     };
 
     const handleUpdateOrderStatus = async (id: number, status: string) => {
         try {
-            await fetch(`http://localhost:4000/api/admin/orders/${id}/status`, {
+            await fetch(`${API_BASE_URL}/api/admin/orders/${id}/status`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status })
@@ -216,7 +217,7 @@ export default function AdminDashboard() {
     const handleDeleteOrder = async (id: number) => {
         if (!window.confirm('Delete this order?')) return;
         try {
-            await fetch(`http://localhost:4000/api/admin/orders/${id}`, { method: 'DELETE' });
+            await fetch(`${API_BASE_URL}/api/admin/orders/${id}`, { method: 'DELETE' });
             fetchOrders();
         } catch (e) { console.error(e); }
     };
@@ -225,7 +226,7 @@ export default function AdminDashboard() {
         e.preventDefault();
         if (!replyText.trim() || !selectedSession) return;
         try {
-            await fetch(`http://localhost:4000/api/admin/chat-sessions/${selectedSession}/reply`, {
+            await fetch(`${API_BASE_URL}/api/admin/chat-sessions/${selectedSession}/reply`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content: replyText })
@@ -238,7 +239,7 @@ export default function AdminDashboard() {
     const handleResolve = async () => {
         if (!selectedSession) return;
         try {
-            await fetch(`http://localhost:4000/api/chat/sessions/${selectedSession}/resolve`, {
+            await fetch(`${API_BASE_URL}/api/chat/sessions/${selectedSession}/resolve`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ internal_note: internalNote })

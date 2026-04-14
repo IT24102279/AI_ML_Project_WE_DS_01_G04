@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Stethoscope } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 export default function Auth() {
     const [isLogin, setIsLogin] = useState(true);
@@ -21,7 +22,7 @@ export default function Auth() {
             : { name, phone, address, password };
 
         try {
-            const res = await fetch(`http://localhost:4000${endpoint}`, {
+            const res = await fetch(`${API_BASE_URL}${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
