@@ -6,44 +6,26 @@ import { io } from '../server';
 
 export const processPrescription = async (req: Request, res: Response) => {
     // Webhook from AI Microservice
-    const { patient_id, extracted_lines } = req.body;
+    // NOTE: Just broadcast extracted lines to frontend without database validation
+    // User will select patient and save later from the POS interface
+    const { extracted_lines } = req.body;
 
-    const connection = await pool.getConnection();
     try {
-        await connection.beginTransaction();
-
-        const [rxResult] = await connection.query<ResultSetHeader>(
-            `INSERT INTO Prescriptions (patient_id, status) VALUES (?, 'Pending Verification')`,
-            [patient_id || null]
-        );
-        const prescriptionId = rxResult.insertId;
-
-        if (extracted_lines && Array.isArray(extracted_lines)) {
-            for (const line of extracted_lines) {
-                await connection.query(
-                    `INSERT INTO Prescription_lines (prescription_id, medicine_name_raw, frequency, total_amount, matched_product_id) 
-                     VALUES (?, ?, ?, ?, ?)`,
-                    [prescriptionId, line.medicine_name_raw, line.frequency || '', line.total_amount || 0, line.matched_product_id || null]
-                );
-            }
-        }
-
-        await connection.commit();
-
-        // Broadcast to all connected frontend clients
+        // Broadcast raw OCR data to all connected frontend clients
+        // Frontend will display in modal, user can review, modify, and select patient before saving
         io.emit('new_ai_scan_received', {
-            prescription_id: prescriptionId,
-            patient_id,
-            extracted_lines
+            prescription_id: null,
+            patient_id: null, // User will select patient in UI
+            extracted_lines: extracted_lines || []
         });
 
-        res.status(200).json({ message: "Prescription processed and broadcasted successfully", prescription_id: prescriptionId });
+        res.status(200).json({ 
+            message: "Prescription data sent to frontend for manual processing", 
+            prescription_id: null
+        });
     } catch (error) {
-        await connection.rollback();
         console.error("AI Webhook Error:", error);
         res.status(500).json({ error: 'Internal server error while processing AI webhook' });
-    } finally {
-        connection.release();
     }
 };
 
@@ -58,10 +40,19 @@ export const saveDraftSale = async (req: AuthRequest, res: Response) => {
     try {
         await connection.beginTransaction();
 
+        let safePrescriptionId: number | null = null;
+        if (prescription_id) {
+            const [rxRows] = await connection.query<RowDataPacket[]>(
+                `SELECT prescription_id FROM Prescriptions WHERE prescription_id = ? LIMIT 1`,
+                [prescription_id]
+            );
+            safePrescriptionId = rxRows.length > 0 ? Number(rxRows[0].prescription_id) : null;
+        }
+
         const [invResult] = await connection.query<ResultSetHeader>(
             `INSERT INTO Sales_Invoices (is_over_the_counter, patient_id, cashier_id, prescription_id, payment_method, total_amount, money_given, status, notes)
              VALUES (?, ?, ?, ?, ?, ?, ?, 'Draft', ?)`,
-            [is_over_the_counter ?? true, patient_id || null, empId, prescription_id || null, payment_method || 'Pending', total_amount || 0, money_given || 0, notes || null]
+            [is_over_the_counter ?? true, patient_id || null, empId, safePrescriptionId, payment_method || 'Pending', total_amount || 0, money_given || 0, notes || null]
         );
         const invoiceId = invResult.insertId;
 
@@ -103,6 +94,13 @@ export const confirmCheckout = async (req: AuthRequest, res: Response) => {
         await connection.beginTransaction();
 
         let currentRxId = prescription_id || null;
+        if (currentRxId) {
+            const [rxRows] = await connection.query<RowDataPacket[]>(
+                `SELECT prescription_id FROM Prescriptions WHERE prescription_id = ? LIMIT 1`,
+                [currentRxId]
+            );
+            currentRxId = rxRows.length > 0 ? Number(rxRows[0].prescription_id) : null;
+        }
         const rxItems = items.filter((i: any) => i.type === 'rx');
 
         if (rxItems.length > 0 && patient_id && !currentRxId) {

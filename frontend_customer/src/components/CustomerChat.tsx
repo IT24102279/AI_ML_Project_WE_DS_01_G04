@@ -94,6 +94,7 @@ export default function CustomerChat() {
             if (res.ok) setAllAppointments(await res.json());
         } catch (e) { console.error(e); }
     };
+    const fetchMyAppointments = async () => {
         try {
             const res = await fetch(`http://localhost:4000/api/customers/${customerId}/appointments`);
             if (res.ok) setMyAppointments(await res.json());

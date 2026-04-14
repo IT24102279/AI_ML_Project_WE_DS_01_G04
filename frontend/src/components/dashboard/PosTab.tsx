@@ -52,6 +52,80 @@ interface AiExtractedLine {
     matched_unit_price?: number;
 }
 
+const normalizeFrequency = (raw: string): string => {
+    const normalized = (raw || '').toUpperCase().replace(/\s+/g, '').replace(/\./g, '');
+    if (!normalized) return '';
+
+    if (["OD", "QD", "ONCEDAILY", "DAILY", "1DAY", "1XDAY"].includes(normalized)) return "OD";
+    if (["BID", "BD", "TWICEDAILY", "2DAY", "1-0-1", "1X2", "BISINDIE"].includes(normalized)) return "BID";
+    if (["TID", "TDS", "THRICEDAILY", "3DAY", "1-1-1", "1X3"].includes(normalized)) return "TID";
+    if (["QID", "4DAY", "1-1-1-1", "FOURTIMES"].includes(normalized)) return "QID";
+    if (["Q4H", "EVERY4HOURS", "4H"].includes(normalized)) return "Q4H";
+    if (["Q8H", "EVERY8HOURS", "8H"].includes(normalized)) return "Q8H";
+    if (["STAT", "NOW", "IMMEDIATE"].includes(normalized)) return "STAT";
+    if (["PRN", "ASNEEDED", "SOS"].includes(normalized)) return "PRN";
+
+    return '';
+};
+
+const extractStrengthMg = (text: string): number | null => {
+    const match = (text || '').toLowerCase().match(/(\d+(?:\.\d+)?)\s*(mg|mcg|g)\b/);
+    if (!match) return null;
+
+    const val = Number(match[1]);
+    const unit = match[2];
+    if (Number.isNaN(val)) return null;
+    if (unit === 'mg') return val;
+    if (unit === 'mcg') return val / 1000;
+    if (unit === 'g') return val * 1000;
+    return null;
+};
+
+const normalizeMedText = (text: string): string => {
+    return (text || '')
+        .toLowerCase()
+        .replace(/\b\d+(?:\.\d+)?\s*(mg|mcg|g|ml)\b/g, ' ')
+        .replace(/\b(tab|tablet|tabs|cap|capsule|caps|syrup|inj|injection|drops?)\b/g, ' ')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+};
+
+const tokenize = (text: string): string[] => normalizeMedText(text).split(' ').filter(Boolean);
+
+const scoreProductMatch = (rawAiName: string, productName: string): number => {
+    const aiNorm = normalizeMedText(rawAiName);
+    const prodNorm = normalizeMedText(productName);
+    if (!aiNorm || !prodNorm) return 0;
+
+    const aiTokens = tokenize(rawAiName);
+    const prodTokens = tokenize(productName);
+    const aiSet = new Set(aiTokens);
+    const prodSet = new Set(prodTokens);
+
+    let overlap = 0;
+    aiSet.forEach(t => {
+        if (prodSet.has(t)) overlap += 1;
+    });
+
+    const overlapRatio = aiSet.size ? overlap / aiSet.size : 0;
+    const containsBonus = aiNorm.includes(prodNorm) || prodNorm.includes(aiNorm) ? 20 : 0;
+    const startsBonus = aiTokens[0] && prodTokens[0] && aiTokens[0] === prodTokens[0] ? 12 : 0;
+
+    let score = overlapRatio * 70 + containsBonus + startsBonus;
+
+    const aiMg = extractStrengthMg(rawAiName);
+    const prodMg = extractStrengthMg(productName);
+    if (aiMg !== null && prodMg !== null) {
+        const diff = Math.abs(aiMg - prodMg);
+        if (diff < 0.01) score += 25;
+        else if (diff <= 5) score += 8;
+        else score -= 15;
+    }
+
+    return Math.max(0, Math.min(100, score));
+};
+
 interface SaleHistory {
     invoice_id: number;
     total_amount: string;
@@ -96,6 +170,72 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
     const [activeTab, setActiveTab] = useState("sale");
 
+    const autoMatchLine = async (line: AiExtractedLine) => {
+        const rawName = line.medicine_name_raw || '';
+        if (!rawName.trim()) return { best: null as ProductSearchResult | null, ranked: [] as ProductSearchResult[] };
+
+        const baseName = normalizeMedText(rawName);
+        const queries = Array.from(new Set([
+            rawName,
+            baseName,
+            baseName.split(' ').slice(0, 2).join(' '),
+            baseName.split(' ')[0]
+        ].filter(q => q && q.length >= 2)));
+
+        const resultMap = new Map<number, ProductSearchResult>();
+        for (const q of queries) {
+            try {
+                const matches = await fetchWithAuth(`/pos/search?q=${encodeURIComponent(q)}`);
+                (matches || []).forEach((m: ProductSearchResult) => resultMap.set(m.product_id, m));
+            } catch {
+                // Ignore failed intermediate searches and continue with other queries.
+            }
+        }
+
+        const ranked = Array.from(resultMap.values())
+            .map(prod => ({ prod, score: scoreProductMatch(rawName, prod.name) }))
+            .sort((a, b) => b.score - a.score)
+            .map(item => item.prod);
+
+        const bestScored = Array.from(resultMap.values())
+            .map(prod => ({ prod, score: scoreProductMatch(rawName, prod.name) }))
+            .sort((a, b) => b.score - a.score)[0];
+
+        const best = bestScored && bestScored.score >= 55 ? bestScored.prod : null;
+        return { best, ranked };
+    };
+
+    const autoMapAiLines = async (incomingLines: AiExtractedLine[]) => {
+        const mappedLines = [...incomingLines];
+        const nextSearchResults: Record<number, ProductSearchResult[]> = {};
+
+        await Promise.all(mappedLines.map(async (line, idx) => {
+            const { best, ranked } = await autoMatchLine(line);
+            if (ranked.length > 0) nextSearchResults[idx] = ranked;
+
+            if (best) {
+                mappedLines[idx] = {
+                    ...line,
+                    frequency: normalizeFrequency(line.frequency) || line.frequency || '',
+                    matched_product_id: best.product_id,
+                    matched_product_name: best.name,
+                    matched_unit_price: Number(best.selling_price) || 0
+                };
+            } else {
+                mappedLines[idx] = {
+                    ...line,
+                    frequency: normalizeFrequency(line.frequency) || line.frequency || '',
+                    matched_product_id: null,
+                    matched_product_name: undefined,
+                    matched_unit_price: undefined
+                };
+            }
+        }));
+
+        setAiSearchResults(nextSearchResults);
+        return mappedLines;
+    };
+
     useEffect(() => {
         // Connect to Socket.io for Real-time AI Webhooks
         const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -103,14 +243,18 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
 
         socketRef.current = io(socketUrl);
 
-        socketRef.current.on('new_ai_scan_received', (data: any) => {
+        socketRef.current.on('new_ai_scan_received', async (data: any) => {
             console.log("Real-time AI Scan Received:", data);
             setPendingAiRxId(data.prescription_id);
-            setAiLines(data.extracted_lines || []);
+            const incomingLines = data.extracted_lines || [];
+            const autoMapped = await autoMapAiLines(incomingLines);
+            setAiLines(autoMapped);
             setAiModalOpen(true);
+
+            const matchedCount = autoMapped.filter((line: AiExtractedLine) => line.matched_product_id !== null).length;
             toast({
                 title: "AI Scan Received",
-                description: "A new prescription was just processed by the AI.",
+                description: `${matchedCount}/${autoMapped.length} medicines were auto-matched. Review unmatched lines manually.`,
                 variant: "default",
             });
         });
@@ -199,7 +343,7 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
             product_name: line.matched_product_name || line.medicine_name_raw,
             quantity: line.total_amount || 1,
             unit_price: line.matched_unit_price || 0,
-            frequency: line.frequency || '',
+            frequency: normalizeFrequency(line.frequency) || line.frequency || '',
             type: 'rx' as const
         }));
 

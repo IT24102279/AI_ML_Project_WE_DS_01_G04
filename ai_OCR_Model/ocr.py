@@ -227,7 +227,7 @@ def gemini_read_prescription(image_path, detected_names):
 
     # 2. Build REST Payload
     # Using stable v1 endpoint as gemini-2.5-flash-lite is now GA
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
     
     payload = {
         "contents": [{
@@ -241,9 +241,9 @@ def gemini_read_prescription(image_path, detected_names):
                 }
             ]
         }],
-        "generationConfig": {
+        "generation_config": {
             "temperature": 0.2,
-            "responseMimeType": "application/json"
+            "response_mime_type": "application/json"
         }
     }
 
@@ -510,4 +510,4 @@ if __name__ == "__main__":
     print(f"  Classes: {NUM_CLASSES}")
     print(f"  Gemini API: {'configured' if GEMINI_API_KEY else 'NOT SET'}")
     print("=" * 60)
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5005, debug=True)
