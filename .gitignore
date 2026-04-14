@@ -52,3 +52,4 @@ commit_history.csv
 # Test reports & traces
 jest-report.json
 test-trace.jsonl
+ai_OCR_Model/uploads/*

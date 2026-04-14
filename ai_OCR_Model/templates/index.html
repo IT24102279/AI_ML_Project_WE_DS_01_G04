@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI-powered prescription OCR pipeline using ResNet-18 and Gemini for medicine name detection">
+  <title>Prescription OCR Pipeline</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💊</text></svg>">
+</head>
+<body>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="spinner"></div>
+    <div class="loading-text">Processing...</div>
+    <div class="loading-subtext"></div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <div class="app-container">
+
+    <!-- Header -->
+    <header class="app-header">
+      <h1>
+        <i data-lucide="pill"></i>
+        Prescription OCR
+      </h1>
+      <p class="subtitle">AI-powered medicine name detection using ResNet-18 &amp; Gemini</p>
+      <div class="network-badge">
+        <span class="dot"></span>
+        Accessible on local network · Port 5000
+      </div>
+    </header>
+
+    <!-- Pipeline Steps Indicator -->
+    <nav class="pipeline-steps">
+      <div class="step-item active" id="step-0">
+        <span class="step-num">1</span>
+        Upload
+      </div>
+      <div class="step-connector"></div>
+      <div class="step-item" id="step-1">
+        <span class="step-num">2</span>
+        Segment
+      </div>
+      <div class="step-connector"></div>
+      <div class="step-item" id="step-2">
+        <span class="step-num">3</span>
+        Detect
+      </div>
+      <div class="step-connector"></div>
+      <div class="step-item" id="step-3">
+        <span class="step-num">4</span>
+        Finalize
+      </div>
+    </nav>
+
+    <!-- ════════════════════════════════
+         STEP 1: Upload / Capture
+         ════════════════════════════════ -->
+    <section class="glass-card" id="upload-section">
+      <div class="card-title">
+        <i data-lucide="camera"></i>
+        Upload or Capture Prescription
+      </div>
+      <p class="card-description">
+        Take a photo from your phone or upload an image of a handwritten prescription.
+        Make sure the medicine names are clearly visible.
+      </p>
+
+      <!-- Upload Zone -->
+      <div class="upload-zone" id="upload-zone">
+        <i data-lucide="upload-cloud" class="upload-icon"></i>
+        <div class="upload-text">Drop image here or click to browse</div>
+        <div class="upload-hint">Supports JPG, PNG, WEBP · Max 32 MB</div>
+        <input type="file" id="file-input" accept="image/*">
+      </div>
+
+      <!-- Camera Capture (for mobile) -->
+      <div style="text-align: center; margin-top: 12px;">
+        <label class="camera-btn" for="camera-input">
+          <i data-lucide="camera-alt"></i>Take Photo
+          <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none">
+        </label>
+      </div>
+
+      <!-- Preview -->
+      <div class="upload-preview" id="upload-preview">
+        <img src="" alt="Preview">
+        <div class="file-info"></div>
+      </div>
+
+      <!-- Actions -->
+      <div class="actions-row">
+        <button class="btn btn-primary" id="btn-segment" disabled onclick="segmentImage()">
+          <i data-lucide="search"></i>Manual Step-by-Step
+        </button>
+        <button class="btn btn-success" id="btn-full-auto" disabled onclick="processFullAuto()">
+          <i data-lucide="zap"></i>Start Full Scan
+        </button>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════
+         STEP 2: Bounding Box Editor
+         ════════════════════════════════ -->
+    <section class="glass-card editor-container" id="editor-section">
+      <div class="card-title">
+        <i data-lucide="edit-2"></i>
+        Edit Detection Regions
+      </div>
+      <p class="card-description">
+        Gemini has identified medicine name regions. Click a box to select it, then drag to move
+        or use corner handles to resize. Add or remove boxes as needed before running detection.
+      </p>
+
+      <!-- Toolbar -->
+      <div class="editor-toolbar">
+        <button class="btn btn-ghost btn-sm" onclick="addBox()"><i data-lucide="plus"></i>Add Box</button>
+        <button class="btn btn-ghost btn-sm" onclick="deleteSelectedBox()"><i data-lucide="trash-2"></i>Delete Selected</button>
+        <button class="btn btn-ghost btn-sm" onclick="resetPipeline()"><i data-lucide="rotate-ccw"></i>Start Over</button>
+        <span class="box-count" id="box-count">0 region(s)</span>
+      </div>
+
+      <!-- Canvas -->
+      <div class="canvas-wrapper">
+        <canvas id="editor-canvas"></canvas>
+      </div>
+
+      <!-- Actions -->
+      <div class="actions-row">
+        <button class="btn btn-ghost" onclick="moveStep(0)"><i data-lucide="arrow-left"></i>Back to Upload</button>
+        <button class="btn btn-success btn-full" onclick="detectNames()">
+          <i data-lucide="brain"></i>Detect Medicine Names (ResNet-18)
+        </button>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════
+         STEP 3: Predictions Display
+         ════════════════════════════════ -->
+    <section class="glass-card" id="predictions-section" style="display:none">
+      <div class="card-title">
+        <i data-lucide="microscope"></i>
+        ResNet-18 Predictions
+      </div>
+      <p class="card-description">
+        Each cropped region was preprocessed and classified by the ResNet-18 model.
+        Review the predictions below, then finalize with Gemini for frequency and dosage.
+      </p>
+
+      <div class="predictions-grid" id="predictions-grid"></div>
+
+      <div class="actions-row">
+        <button class="btn btn-ghost" onclick="moveStep(1)"><i data-lucide="arrow-left"></i>Back to Editor</button>
+        <button class="btn btn-primary btn-full" onclick="finalizeReading()">
+          <i data-lucide="zap"></i>Finalize with Gemini (Get Frequency &amp; Total)
+        </button>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════
+         STEP 4: Final Results
+         ════════════════════════════════ -->
+    <section class="glass-card" id="results-section" style="display:none">
+      <div class="card-title">
+        <i data-lucide="receipt"></i>
+        Final Prescription Data
+      </div>
+      <p class="card-description">
+        Gemini has verified the medicine names and extracted dosage information.
+        This is the structured data ready to send to your POS backend.
+      </p>
+
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Medicine Name</th>
+            <th>Frequency</th>
+            <th>Total Amount</th>
+          </tr>
+        </thead>
+        <tbody id="results-tbody"></tbody>
+      </table>
+
+      <div class="json-preview">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-size:0.8rem; color:var(--text-secondary); font-weight:600;">JSON Payload</span>
+          <span class="status-badge success"><i data-lucide="check" style="width: 14px; height: 14px; margin-right: 4px;"></i>Ready to send</span>
+        </div>
+        <pre id="json-preview"></pre>
+      </div>
+
+      <div class="actions-row">
+        <button class="btn btn-ghost" onclick="moveStep(2)"><i data-lucide="arrow-left"></i>Back to Decisions</button>
+        <button class="btn btn-success" onclick="sendToBackend()">
+          <i data-lucide="send"></i>Send to POS Backend
+        </button>
+        <button class="btn btn-primary" onclick="resetPipeline()">
+          <i data-lucide="rotate-ccw"></i>New Scan
+        </button>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════
+         Debug / Log Panel
+         ════════════════════════════════ -->
+    <section class="glass-card">
+      <div class="card-title" style="cursor:pointer" onclick="toggleDebug()">
+        <i data-lucide="bug"></i>
+        Debug Log
+        <span style="font-size:0.7rem; color:var(--text-secondary); margin-left:auto">click to toggle</span>
+      </div>
+      <div class="debug-panel" id="debug-panel" style="display:block"></div>
+    </section>
+
+  </div>
+
+  <!-- Replace Lucide Icons with inline SVGs -->
+  <script>
+    lucide.createIcons();
+  </script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
