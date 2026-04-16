@@ -135,13 +135,23 @@ interface SaleHistory {
     cashier_name: string;
 }
 
+const toNonNegativeNumber = (value: unknown): number => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+};
+
+const toPositiveNumber = (value: unknown): number => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+
 export default function PosTab({ currency = '$', canManageSales = false }: { currency?: string, canManageSales?: boolean }) {
     const { toast } = useToast();
     const navigate = useNavigate();
 
     // -- Cart State --
     const [cart, setCart] = useState<CartItem[]>([]);
-    const [moneyGiven, setMoneyGiven] = useState<number>(0);
+    const [moneyGivenInput, setMoneyGivenInput] = useState<string>("0");
     const [isCheckingOut, setIsCheckingOut] = useState(false);
 
     // -- Search State --
@@ -180,7 +190,7 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
                 if (state.cart) setCart(state.cart);
                 if (state.selectedPatientId) setSelectedPatientId(state.selectedPatientId);
                 if (state.discountPct) setDiscountPct(state.discountPct);
-                if (state.moneyGiven) setMoneyGiven(state.moneyGiven);
+                if (state.moneyGiven !== undefined && state.moneyGiven !== null) setMoneyGivenInput(String(state.moneyGiven));
                 if (state.pendingAiRxId) setPendingAiRxId(state.pendingAiRxId);
                 if (state.aiLines) setAiLines(state.aiLines);
                 if (state.activeTab) setActiveTab(state.activeTab);
@@ -196,18 +206,18 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
             cart,
             selectedPatientId,
             discountPct,
-            moneyGiven,
+            moneyGiven: moneyGivenInput,
             pendingAiRxId,
             aiLines,
             activeTab
         };
         localStorage.setItem('pos_draft_state', JSON.stringify(state));
-    }, [cart, selectedPatientId, discountPct, moneyGiven, pendingAiRxId, aiLines, activeTab]);
+    }, [cart, selectedPatientId, discountPct, moneyGivenInput, pendingAiRxId, aiLines, activeTab]);
 
     const clearLocalDraft = () => {
         localStorage.removeItem('pos_draft_state');
         setCart([{ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "", type: "otc" }]);
-        setMoneyGiven(0);
+        setMoneyGivenInput("0");
         setSelectedPatientId(null);
         setDiscountPct(0);
         setPendingAiRxId(null);
@@ -347,14 +357,14 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
         // Validation: Quantity and Price cannot be negative
         if (field === 'quantity') {
             const val = Number(value);
-            if (val < 0) {
+            if (Number.isFinite(val) && val < 0) {
                 toast({ title: "Invalid Quantity", description: "Quantity cannot be negative", variant: "destructive" });
                 return;
             }
         }
         if (field === 'unit_price') {
             const val = Number(value);
-            if (val < 0) {
+            if (Number.isFinite(val) && val < 0) {
                 toast({ title: "Invalid Price", description: "Price cannot be negative", variant: "destructive" });
                 return;
             }
@@ -388,7 +398,8 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
     };
 
     // --- Totals ---
-    const cartSubtotal = cart.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+    const moneyGiven = toNonNegativeNumber(moneyGivenInput);
+    const cartSubtotal = cart.reduce((sum, item) => sum + (toNonNegativeNumber(item.quantity) * toNonNegativeNumber(item.unit_price)), 0);
     const discountAmount = cartSubtotal * (discountPct / 100);
     const discountedTotal = cartSubtotal - discountAmount;
     const balanceDue = Math.max(0, discountedTotal - moneyGiven);
@@ -416,7 +427,7 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
 
     // --- Checkout / Draft Logic ---
     const handleCheckout = async () => {
-        const validItems = cart.filter(item => item.product_id !== null && item.quantity > 0);
+        const validItems = cart.filter(item => item.product_id !== null && toPositiveNumber(item.quantity) > 0);
         if (validItems.length === 0) {
             toast({ title: "Cart is empty", variant: "destructive" });
             return;
@@ -433,8 +444,8 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
                 money_given: moneyGiven,
                 items: validItems.map(item => ({
                     product_id: item.product_id,
-                    quantity: Number(item.quantity),
-                    unit_price: Number(item.unit_price),
+                    quantity: toPositiveNumber(item.quantity),
+                    unit_price: toNonNegativeNumber(item.unit_price),
                     type: item.type,
                     frequency: item.frequency
                 }))
@@ -457,7 +468,7 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
 
     const handleSaveDraft = async () => {
         // For drafts, we allow items that have a name even if they haven't been matched to a product ID yet
-        const validItems = cart.filter(item => (item.product_id !== null || (item.product_name && item.product_name.trim() !== "")) && item.quantity > 0);
+        const validItems = cart.filter(item => (item.product_id !== null || (item.product_name && item.product_name.trim() !== "")) && toPositiveNumber(item.quantity) > 0);
         if (validItems.length === 0) {
             toast({ title: "Cart is empty", variant: "destructive" });
             return;
@@ -475,8 +486,8 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
                 items: validItems.map(item => ({
                     product_id: item.product_id,
                     batch_id: item.batch_id, // If assigned
-                    quantity: Number(item.quantity),
-                    unit_price: Number(item.unit_price),
+                    quantity: toPositiveNumber(item.quantity),
+                    unit_price: toNonNegativeNumber(item.unit_price),
                     product_name: item.product_name,
                     type: item.type,
                     frequency: item.frequency
@@ -569,9 +580,9 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
                                         <div key={idx} className="flex justify-between items-center py-3 border-b border-slate-200 last:border-0">
                                             <div>
                                                 <p className="font-semibold text-slate-800">{item.product_name}</p>
-                                                <p className="text-sm text-slate-500">{item.quantity} x {currency}{Number(item.unit_price || 0).toFixed(2)}</p>
+                                                <p className="text-sm text-slate-500">{item.quantity} x {currency}{toNonNegativeNumber(item.unit_price).toFixed(2)}</p>
                                             </div>
-                                            <p className="font-bold text-slate-900">{currency}{(Number(item.quantity || 0) * Number(item.unit_price || 0)).toFixed(2)}</p>
+                                            <p className="font-bold text-slate-900">{currency}{(toNonNegativeNumber(item.quantity) * toNonNegativeNumber(item.unit_price)).toFixed(2)}</p>
                                         </div>
                                     ))}
                                     {cart.filter(item => item.product_id !== null).length === 0 && (
@@ -600,13 +611,13 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
                                     <div className="space-y-1 mt-4">
                                         <Label>Money Given</Label>
                                         <Input
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            value={moneyGiven || ''}
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={moneyGivenInput}
                                             onChange={(e) => {
-                                                const val = e.target.value ? Number(e.target.value) : 0;
-                                                if (val < 0) {
+                                                const raw = e.target.value;
+                                                const val = Number(raw);
+                                                if (Number.isFinite(val) && val < 0) {
                                                     toast({ 
                                                         title: "Invalid Input", 
                                                         description: "Money given cannot be a negative value", 
@@ -614,7 +625,7 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
                                                     });
                                                     return;
                                                 }
-                                                setMoneyGiven(val);
+                                                setMoneyGivenInput(raw);
                                             }}
                                             className="text-lg font-semibold"
                                         />
@@ -736,13 +747,13 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
                                                             </Select>
                                                         </TableCell>
                                                         <TableCell>
-                                                            <Input type="number" min="1" value={row.quantity || ''} onChange={e => updateCartRow(row.id, "quantity", Number(e.target.value))} />
+                                                            <Input type="text" inputMode="decimal" value={row.quantity || ''} onChange={e => updateCartRow(row.id, "quantity", e.target.value)} />
                                                         </TableCell>
                                                         <TableCell>
-                                                            <Input type="number" min="0" step="0.01" value={row.unit_price || ''} onChange={e => updateCartRow(row.id, "unit_price", Number(e.target.value))} />
+                                                            <Input type="text" inputMode="decimal" value={row.unit_price || ''} onChange={e => updateCartRow(row.id, "unit_price", e.target.value)} />
                                                         </TableCell>
                                                         <TableCell className="text-right font-medium text-slate-700">
-                                                            {currency}{(Number(row.quantity || 0) * Number(row.unit_price || 0)).toFixed(2)}
+                                                            {currency}{(toNonNegativeNumber(row.quantity) * toNonNegativeNumber(row.unit_price)).toFixed(2)}
                                                         </TableCell>
                                                         <TableCell>
                                                             <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeCartRow(row.id)}>
@@ -844,13 +855,13 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
                                                             </Select>
                                                         </TableCell>
                                                         <TableCell>
-                                                            <Input type="number" min="1" value={row.quantity || ''} onChange={e => updateCartRow(row.id, "quantity", Number(e.target.value))} />
+                                                            <Input type="text" inputMode="decimal" value={row.quantity || ''} onChange={e => updateCartRow(row.id, "quantity", e.target.value)} />
                                                         </TableCell>
                                                         <TableCell>
-                                                            <Input type="number" min="0" step="0.01" value={row.unit_price || ''} onChange={e => updateCartRow(row.id, "unit_price", Number(e.target.value))} />
+                                                            <Input type="text" inputMode="decimal" value={row.unit_price || ''} onChange={e => updateCartRow(row.id, "unit_price", e.target.value)} />
                                                         </TableCell>
                                                         <TableCell className="text-right font-medium text-slate-700">
-                                                            {currency}{(Number(row.quantity || 0) * Number(row.unit_price || 0)).toFixed(2)}
+                                                            {currency}{(toNonNegativeNumber(row.quantity) * toNonNegativeNumber(row.unit_price)).toFixed(2)}
                                                         </TableCell>
                                                         <TableCell>
                                                             <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeCartRow(row.id)}>
