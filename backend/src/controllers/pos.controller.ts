@@ -61,12 +61,10 @@ export const saveDraftSale = async (req: AuthRequest, res: Response) => {
         // Assuming `items` array has { batch_id, quantity, unit_price }
         if (items && items.length > 0) {
             for (const item of items) {
-                if (item.batch_id) {
-                    await connection.query(
-                        `INSERT INTO Sale_Items (invoice_id, batch_id, quantity, unit_price, item_type, frequency) VALUES (?, ?, ?, ?, ?, ?)`,
-                        [invoiceId, item.batch_id, item.quantity, item.unit_price, item.type || 'otc', item.frequency || '']
-                    );
-                }
+                await connection.query(
+                    `INSERT INTO Sale_Items (invoice_id, product_id, medicine_name_raw, batch_id, quantity, unit_price, item_type, frequency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [invoiceId, item.product_id || null, item.product_id ? null : (item.product_name || 'Generic Item'), item.batch_id || null, item.quantity, item.unit_price, item.type || 'otc', item.frequency || '']
+                );
             }
         }
 
@@ -258,11 +256,17 @@ export const getInvoiceReceipt = async (req: AuthRequest, res: Response) => {
 
         // For completed sales, we can query Sale_Items -> Batches -> Products
         // For drafts, we might also have Sale_Items recorded if batches were assigned.
+        // For completed sales, we can query Sale_Items -> Batches -> Products
+        // For drafts, we might also have Sale_Items recorded with just product_id.
         const [items] = await pool.query<RowDataPacket[]>(
-            `SELECT si.sale_item_id, si.quantity, si.unit_price, si.item_type, si.frequency, p.name as product_name, p.product_id
+            `SELECT si.sale_item_id, si.quantity, si.unit_price, si.item_type, si.frequency, 
+                    COALESCE(p.name, p2.name, si.medicine_name_raw) as product_name, 
+                    COALESCE(ib.product_id, si.product_id) as product_id,
+                    si.batch_id
              FROM Sale_Items si
-             JOIN Inventory_Batches ib ON si.batch_id = ib.batch_id
-             JOIN Products p ON ib.product_id = p.product_id
+             LEFT JOIN Inventory_Batches ib ON si.batch_id = ib.batch_id
+             LEFT JOIN Products p ON ib.product_id = p.product_id
+             LEFT JOIN Products p2 ON si.product_id = p2.product_id
              WHERE si.invoice_id = ?`,
             [invoiceId]
         );

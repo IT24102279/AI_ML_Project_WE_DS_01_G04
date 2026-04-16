@@ -33,6 +33,16 @@ async function runSeed() {
     await ensureColumn('Products', 'selling_price', 'ALTER TABLE Products ADD COLUMN selling_price DECIMAL(10,2) DEFAULT 0.00');
     await ensureColumn('Sale_Items', 'item_type', "ALTER TABLE Sale_Items ADD COLUMN item_type ENUM('rx', 'otc') DEFAULT 'otc'");
     await ensureColumn('Sale_Items', 'frequency', "ALTER TABLE Sale_Items ADD COLUMN frequency VARCHAR(100)");
+    await ensureColumn('Sale_Items', 'product_id', "ALTER TABLE Sale_Items ADD COLUMN product_id INT");
+    await ensureColumn('Sale_Items', 'medicine_name_raw', "ALTER TABLE Sale_Items ADD COLUMN medicine_name_raw VARCHAR(255)");
+    // Ensure product_id has foreign key if we just added it
+    try {
+        await pool.query('ALTER TABLE Sale_Items ADD FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE SET NULL');
+    } catch (e) {}
+    // Ensure batch_id is nullable
+    try {
+        await pool.query('ALTER TABLE Sale_Items MODIFY COLUMN batch_id INT NULL');
+    } catch (e) {}
 
     console.log("Seeding Permissions...");
     const permissionsData = [

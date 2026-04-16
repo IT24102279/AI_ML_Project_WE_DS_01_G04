@@ -170,6 +170,50 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
     const [activeTab, setActiveTab] = useState("sale");
 
+    // -- Persistence Logic --
+    useEffect(() => {
+        // Load state from localStorage on mount
+        const savedPosState = localStorage.getItem('pos_draft_state');
+        if (savedPosState) {
+            try {
+                const state = JSON.parse(savedPosState);
+                if (state.cart) setCart(state.cart);
+                if (state.selectedPatientId) setSelectedPatientId(state.selectedPatientId);
+                if (state.discountPct) setDiscountPct(state.discountPct);
+                if (state.moneyGiven) setMoneyGiven(state.moneyGiven);
+                if (state.pendingAiRxId) setPendingAiRxId(state.pendingAiRxId);
+                if (state.aiLines) setAiLines(state.aiLines);
+                if (state.activeTab) setActiveTab(state.activeTab);
+            } catch (e) {
+                console.error("Failed to load POS state", e);
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        // Save state to localStorage whenever it changes
+        const state = {
+            cart,
+            selectedPatientId,
+            discountPct,
+            moneyGiven,
+            pendingAiRxId,
+            aiLines,
+            activeTab
+        };
+        localStorage.setItem('pos_draft_state', JSON.stringify(state));
+    }, [cart, selectedPatientId, discountPct, moneyGiven, pendingAiRxId, aiLines, activeTab]);
+
+    const clearLocalDraft = () => {
+        localStorage.removeItem('pos_draft_state');
+        setCart([{ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "", type: "otc" }]);
+        setMoneyGiven(0);
+        setSelectedPatientId(null);
+        setDiscountPct(0);
+        setPendingAiRxId(null);
+        setAiLines([]);
+    };
+
     const autoMatchLine = async (line: AiExtractedLine) => {
         const rawName = line.medicine_name_raw || '';
         if (!rawName.trim()) return { best: null as ProductSearchResult | null, ranked: [] as ProductSearchResult[] };
@@ -259,7 +303,7 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
             });
         });
 
-        if (cart.length === 0) {
+        if (cart.length === 0 && !localStorage.getItem('pos_draft_state')) {
             setCart([{ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "", type: "otc" }]);
         }
 
@@ -385,10 +429,7 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
             toast({ title: "Sale Completed", description: `Change Due: ${currency}${res.change_due.toFixed(2)}` });
 
             // Clear cart & load history
-            setCart([{ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "", type: "otc" }]);
-            setMoneyGiven(0);
-            setSelectedPatientId(null);
-            setDiscountPct(0);
+            clearLocalDraft();
             loadHistory();
 
             navigate(`/receipt/${res.invoice_id}`);
@@ -400,7 +441,8 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
     };
 
     const handleSaveDraft = async () => {
-        const validItems = cart.filter(item => item.product_id !== null && item.quantity > 0);
+        // For drafts, we allow items that have a name even if they haven't been matched to a product ID yet
+        const validItems = cart.filter(item => (item.product_id !== null || (item.product_name && item.product_name.trim() !== "")) && item.quantity > 0);
         if (validItems.length === 0) {
             toast({ title: "Cart is empty", variant: "destructive" });
             return;
@@ -420,6 +462,7 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
                     batch_id: item.batch_id, // If assigned
                     quantity: Number(item.quantity),
                     unit_price: Number(item.unit_price),
+                    product_name: item.product_name,
                     type: item.type,
                     frequency: item.frequency
                 }))
@@ -429,10 +472,7 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
             toast({ title: "Draft Saved", description: `Draft #${res.invoice_id} saved successfully.` });
 
             // Clear cart
-            setCart([{ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "", type: "otc" }]);
-            setMoneyGiven(0);
-            setSelectedPatientId(null);
-            setDiscountPct(0);
+            clearLocalDraft();
             loadHistory();
 
         } catch (error: any) {
@@ -476,7 +516,7 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
             quantity: item.quantity,
             unit_price: item.unit_price,
             frequency: item.frequency || '',
-            type: item.type || 'otc'
+            type: item.item_type || 'otc'
         }));
 
         if (newCart.length === 0) newCart.push({ id: crypto.randomUUID(), product_id: null, product_name: "", quantity: 1, unit_price: 0, frequency: "", type: "otc" });

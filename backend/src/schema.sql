@@ -143,12 +143,15 @@ CREATE TABLE IF NOT EXISTS Sales_Invoices (
 CREATE TABLE IF NOT EXISTS Sale_Items (
     sale_item_id INT AUTO_INCREMENT PRIMARY KEY,
     invoice_id INT NOT NULL,
-    batch_id INT NOT NULL,
+    product_id INT,
+    medicine_name_raw VARCHAR(255),
+    batch_id INT,
     quantity INT NOT NULL,
     unit_price DECIMAL(10,2) NOT NULL,
     item_type ENUM('rx', 'otc') DEFAULT 'otc',
     frequency VARCHAR(100),
     FOREIGN KEY (invoice_id) REFERENCES Sales_Invoices(invoice_id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE SET NULL,
     FOREIGN KEY (batch_id) REFERENCES Inventory_Batches(batch_id) ON DELETE RESTRICT
 );
 
