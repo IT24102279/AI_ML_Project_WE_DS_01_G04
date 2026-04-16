@@ -64,7 +64,7 @@ if NUM_CLASSES > 0:
     model.fc = nn.Linear(in_features, NUM_CLASSES)
 
     if os.path.exists(MODEL_PATH):
-        ckpt = torch.load(MODEL_PATH, map_location=DEVICE)
+        ckpt = torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False)
         state = ckpt.get("state_dict", ckpt)
         model.load_state_dict(state)
         print(f"[INFO] Model loaded from {MODEL_PATH}")
