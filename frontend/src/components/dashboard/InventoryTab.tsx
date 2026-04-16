@@ -208,8 +208,16 @@ export default function InventoryTab({ currency = '$' }: { currency?: string }) 
                                         <Input value={productForm.category} onChange={e => setProductForm({ ...productForm, category: e.target.value })} />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Current Stock</Label>
-                                        <Input type="number" min="0" required value={productForm.current_stock} onChange={e => setProductForm({ ...productForm, current_stock: e.target.value as any })} />
+                                        <Label className="text-slate-500">Current Stock (Automated)</Label>
+                                        <Input 
+                                            type="number" 
+                                            disabled 
+                                            value={productForm.current_stock} 
+                                            className="bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed italic"
+                                        />
+                                        <p className="text-[11px] text-amber-600 font-semibold bg-amber-50 p-2 rounded border border-amber-100">
+                                            ⚠️ Current stock cannot be set manually. Use the <strong>Stock Batches</strong> tab or <strong>Receive Stock (GRN)</strong> to add inventory.
+                                        </p>
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Unit Selling Price ({currency})</Label>
