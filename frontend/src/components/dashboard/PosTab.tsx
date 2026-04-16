@@ -344,6 +344,21 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
 
     // --- Cart Manipulation ---
     const updateCartRow = (id: string, field: keyof CartItem, value: any) => {
+        // Validation: Quantity and Price cannot be negative
+        if (field === 'quantity') {
+            const val = Number(value);
+            if (val < 0) {
+                toast({ title: "Invalid Quantity", description: "Quantity cannot be negative", variant: "destructive" });
+                return;
+            }
+        }
+        if (field === 'unit_price') {
+            const val = Number(value);
+            if (val < 0) {
+                toast({ title: "Invalid Price", description: "Price cannot be negative", variant: "destructive" });
+                return;
+            }
+        }
         setCart(cart.map(item => item.id === id ? { ...item, [field]: value } : item));
     };
 
@@ -385,8 +400,8 @@ export default function PosTab({ currency = '$', canManageSales = false }: { cur
             id: crypto.randomUUID(),
             product_id: line.matched_product_id!,
             product_name: line.matched_product_name || line.medicine_name_raw,
-            quantity: line.total_amount || 1,
-            unit_price: line.matched_unit_price || 0,
+            quantity: Math.max(1, Number(line.total_amount) || 1),
+            unit_price: Math.max(0, Number(line.matched_unit_price) || 0),
             frequency: normalizeFrequency(line.frequency) || line.frequency || '',
             type: 'rx' as const
         }));
