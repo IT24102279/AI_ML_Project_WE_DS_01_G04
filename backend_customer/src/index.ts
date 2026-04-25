@@ -28,7 +28,7 @@ try {
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const model = genAI.getGenerativeModel({
     model: "gemini-2.5-flash",
-    systemInstruction: `You are the helpful AI assistant for 'Colombo AI Pharmacy'. 
+    systemInstruction: `You are the helpful AI assistant for 'Shehara Pharmacy And Grocery'. 
     
     BASE KNOWLEDGE (Retrievable Info):
     ${pharmacyKnowledge}
@@ -284,10 +284,24 @@ app.post('/api/appointments/book', async (req, res) => {
     }
 });
 
-// Get My Appointments
+// Get My Appointments (with optional date range filtering)
 app.get('/api/customers/:id/appointments', async (req, res) => {
     try {
-        const [rows] = await pool.query(`SELECT * FROM Appointments WHERE customer_id = ? ORDER BY scheduled_time ASC`, [req.params.id]);
+        const { start_date, end_date } = req.query;
+        let query = `SELECT * FROM Appointments WHERE customer_id = ?`;
+        const params: any[] = [req.params.id];
+
+        if (start_date) {
+            query += ` AND scheduled_time >= ?`;
+            params.push(start_date);
+        }
+        if (end_date) {
+            query += ` AND scheduled_time <= ?`;
+            params.push(end_date);
+        }
+
+        query += ` ORDER BY scheduled_time ASC`;
+        const [rows] = await pool.query(query, params);
         res.json(rows);
     } catch (error) {
         res.status(500).json({ error: 'Internal Server Error' });
@@ -417,10 +431,27 @@ app.get('/api/admin/chat-sessions/:id/messages', async (req, res) => {
     }
 });
 
-// 8. Admin Get Appointments
+// 8. Admin Get Appointments (with optional date range filtering)
 app.get('/api/admin/appointments', async (req, res) => {
     try {
-        const [rows] = await pool.query(`SELECT * FROM Appointments ORDER BY scheduled_time ASC`);
+        const { start_date, end_date } = req.query;
+        let query = `SELECT * FROM Appointments`;
+        const params: any[] = [];
+
+        if (start_date || end_date) {
+            query += ` WHERE`;
+            if (start_date) {
+                query += ` scheduled_time >= ?`;
+                params.push(start_date);
+            }
+            if (end_date) {
+                query += `${start_date ? ' AND' : ''} scheduled_time <= ?`;
+                params.push(end_date);
+            }
+        }
+
+        query += ` ORDER BY scheduled_time ASC`;
+        const [rows] = await pool.query(query, params);
         res.json(rows);
     } catch (error) {
         res.status(500).json({ error: 'Internal Server Error' });

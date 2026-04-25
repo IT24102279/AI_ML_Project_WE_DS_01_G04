@@ -87,6 +87,8 @@ export default function CustomerChat() {
     const [myAppointments, setMyAppointments] = useState<any[]>([]);
     const [editingAppointmentId, setEditingAppointmentId] = useState<number | null>(null);
     const [allAppointments, setAllAppointments] = useState<any[]>([]);
+    const [filterStartDate, setFilterStartDate] = useState('');
+    const [filterEndDate, setFilterEndDate] = useState('');
 
     const fetchAllAppointments = async () => {
         try {
@@ -96,13 +98,22 @@ export default function CustomerChat() {
     };
     const fetchMyAppointments = async () => {
         try {
-            const res = await fetch(`http://localhost:4000/api/customers/${customerId}/appointments`);
+            let url = `http://localhost:4000/api/customers/${customerId}/appointments`;
+            const params = new URLSearchParams();
+            if (filterStartDate) params.append('start_date', filterStartDate);
+            if (filterEndDate) params.append('end_date', filterEndDate);
+            if (params.toString()) url += `?${params.toString()}`;
+
+            const res = await fetch(url);
             if (res.ok) setMyAppointments(await res.json());
         } catch (e) { console.error(e); }
     };
 
     useEffect(() => {
         fetchMyAppointments();
+    }, [customerId, filterStartDate, filterEndDate]);
+
+    useEffect(() => {
         fetchAllAppointments();
     }, [customerId]);
 
@@ -284,6 +295,31 @@ export default function CustomerChat() {
                         <Clock className="w-4 h-4 text-slate-400" />
                         My Appointments
                     </h3>
+                    
+                    <div className="flex gap-2 mb-2">
+                        <input 
+                            type="date" 
+                            className="flex-1 text-[10px] border rounded p-1 outline-none"
+                            value={filterStartDate}
+                            onChange={e => setFilterStartDate(e.target.value)}
+                            title="Start Date"
+                        />
+                        <input 
+                            type="date" 
+                            className="flex-1 text-[10px] border rounded p-1 outline-none"
+                            value={filterEndDate}
+                            onChange={e => setFilterEndDate(e.target.value)}
+                            title="End Date"
+                        />
+                        {(filterStartDate || filterEndDate) && (
+                            <button 
+                                onClick={() => { setFilterStartDate(''); setFilterEndDate(''); }}
+                                className="text-[10px] text-blue-600 font-bold"
+                            >
+                                Clear
+                            </button>
+                        )}
+                    </div>
                     {myAppointments.length === 0 ? (
                         <p className="text-sm text-slate-500">No upcoming appointments.</p>
                     ) : (

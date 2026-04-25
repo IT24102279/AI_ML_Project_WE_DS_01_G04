@@ -27,6 +27,8 @@ export default function AdminDashboard() {
     const [chatMessages, setChatMessages] = useState<any[]>([]);
     const [replyText, setReplyText] = useState('');
     const [internalNote, setInternalNote] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
 
     useEffect(() => {
         fetchSessions();
@@ -70,10 +72,20 @@ export default function AdminDashboard() {
 
     const fetchAppointments = async () => {
         try {
-            const res = await fetch('http://localhost:4000/api/admin/appointments');
+            let url = 'http://localhost:4000/api/admin/appointments';
+            const params = new URLSearchParams();
+            if (startDate) params.append('start_date', startDate);
+            if (endDate) params.append('end_date', endDate);
+            if (params.toString()) url += `?${params.toString()}`;
+
+            const res = await fetch(url);
             if (res.ok) setAppointments(await res.json());
         } catch (e) { console.error(e); }
     };
+
+    useEffect(() => {
+        fetchAppointments();
+    }, [startDate, endDate]);
 
     const fetchOrders = async () => {
         try {
@@ -310,7 +322,38 @@ export default function AdminDashboard() {
             </div>
 
             {activeTab === 'appointments' && (
-                <div className="bg-white border rounded-lg shadow-sm overflow-hidden flex-1">
+                <div className="bg-white border rounded-lg shadow-sm overflow-hidden flex-1 flex flex-col">
+                    <div className="p-4 bg-slate-50 border-b flex flex-wrap items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">From:</label>
+                            <input 
+                                type="date" 
+                                className="border rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                value={startDate}
+                                onChange={e => setStartDate(e.target.value)}
+                            />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">To:</label>
+                            <input 
+                                type="date" 
+                                className="border rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                value={endDate}
+                                onChange={e => setEndDate(e.target.value)}
+                            />
+                        </div>
+                        {(startDate || endDate) && (
+                            <button 
+                                onClick={() => { setStartDate(''); setEndDate(''); }}
+                                className="text-xs font-bold text-blue-600 hover:underline"
+                            >
+                                Clear Filters
+                            </button>
+                        )}
+                        <div className="ml-auto text-xs text-slate-400 font-medium italic">
+                            Showing {appointments.length} appointments
+                        </div>
+                    </div>
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50 border-b">
