@@ -67,7 +67,8 @@ Write-Host "  Checking Python requirements..." -ForegroundColor Gray
 & $py -c "import flask, dotenv, requests, torch, cv2" 2>$null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "  Installing requirements for OCR..." -ForegroundColor Yellow
-    & $py -m pip install -r requirements.txt
+    & $py -m pip install --upgrade pip --user
+    & $py -m pip install -r requirements.txt --user
 }
 
 $OCRJob = Start-Process -NoNewWindow -PassThru -FilePath $py -ArgumentList "ocr.py"
